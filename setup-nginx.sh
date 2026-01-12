@@ -6,7 +6,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-UPLOADS_DIR="$SCRIPT_DIR/uploads"
+UPLOADS_DIR="/var/lib/sendinator/uploads"
 NGINX_SITE_CONF="/etc/nginx/sites-available/sendinator"
 NGINX_ENABLED_LINK="/etc/nginx/sites-enabled/sendinator"
 NODE_PORT=3000
@@ -43,6 +43,13 @@ if [ ! -w "/etc/nginx/sites-available" ]; then
     echo "  sudo ./setup-nginx.sh"
     exit 1
 fi
+
+# Create uploads directory with proper permissions
+echo "Creating uploads directory..."
+mkdir -p "$UPLOADS_DIR"
+chown www-data:www-data "$UPLOADS_DIR"
+chmod 755 "$UPLOADS_DIR"
+echo -e "${GREEN}Created: $UPLOADS_DIR (owned by www-data)${NC}"
 
 # Create the nginx config
 echo "Creating nginx config..."

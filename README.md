@@ -70,7 +70,7 @@ USE_NGINX_ACCEL=false pm2 restart sendinator
 
 ## Storage
 
-Uploaded chunks are stored in `./uploads/`.
+Uploaded chunks are stored in `/var/lib/sendinator/uploads/` (configurable via `UPLOAD_DIR` env var).
 
 ## TODO: Future Optimizations
 
