@@ -101,3 +101,16 @@ Download side:
 These browsers lack full File System Access API support:
 - Download: Fall back to direct browser download (single .tar file) instead of JS streaming
 - Upload: Standard file picker (no folder upload until APIs improve)
+
+### Admin Panel & Upload Keys
+
+Passkey-based admin authentication:
+- On first launch, prompt to create a passkey (WebAuthn) stored by browser/OS
+- Passkey grants access to admin panel
+- No passwords to remember or leak
+
+Upload key system:
+- Admin can issue upload keys with bandwidth limits (e.g., "50GB one-time upload")
+- Uploading requires a valid key
+- Once bandwidth limit reached, upload is auto-deleted
+- Prevents abuse, enables controlled sharing
