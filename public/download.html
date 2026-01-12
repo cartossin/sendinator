@@ -149,7 +149,7 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v2.2.2</div>
+    <div class="version">v2.2.3</div>
 
     <script>
         // Pipeline configuration
@@ -234,6 +234,12 @@
             progressContainer.classList.add('active');
             status.className = 'status downloading';
             status.textContent = 'Starting pipeline...';
+
+            // Fetch fresh file info before starting (ensures we have latest hashes)
+            try {
+                const res = await fetch(`/api/info/${fileId}`);
+                if (res.ok) fileInfo = await res.json();
+            } catch (e) { /* use cached */ }
 
             // Calculate buffer sizes from server config
             // Split target memory between download buffer and verified buffer
