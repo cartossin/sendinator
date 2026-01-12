@@ -606,7 +606,7 @@
                 clearInterval(speedInterval);
 
                 status.className = 'status verifying';
-                status.textContent = 'Finalizing file...';
+                status.textContent = 'Finalizing file... (browser security scan - may take a few minutes for large files)';
 
                 await writable.close();
 
