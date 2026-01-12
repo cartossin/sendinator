@@ -346,7 +346,21 @@
                                 console.log(`[WORKER] Discarding chunk ${chunkIndex} - watchdog reset it`);
                                 break;
                             }
-                            await new Promise(r => setTimeout(r, 50));
+                            // Critical chunk (nextChunkToWrite) gets priority - evict later chunks
+                            if (chunkIndex === nextChunkToWrite) {
+                                let maxIdx = -1;
+                                for (const idx of downloadBuffer.keys()) {
+                                    if (idx > maxIdx) maxIdx = idx;
+                                }
+                                if (maxIdx > chunkIndex) {
+                                    console.log(`[WORKER] Evicting chunk ${maxIdx} to make room for critical chunk ${chunkIndex}`);
+                                    downloadBuffer.delete(maxIdx);
+                                    chunkState[maxIdx] = 'pending';
+                                    break;
+                                }
+                            }
+                            const remaining = fileInfo.totalChunks - nextChunkToWrite;
+                            await new Promise(r => setTimeout(r, remaining < 20 ? 10 : 50));
                         }
                         if (pipelineError) break;
 
@@ -590,10 +604,14 @@
                 ]);
 
                 clearInterval(speedInterval);
+
+                status.className = 'status verifying';
+                status.textContent = 'Finalizing file...';
+
                 await writable.close();
 
                 status.className = 'status complete';
-                status.textContent = 'Download complete! File saved to disk.';
+                status.textContent = 'Download complete!';
                 progressFill.style.width = '100%';
                 progressPercent.textContent = '100%';
                 downloadBtn.disabled = false;
