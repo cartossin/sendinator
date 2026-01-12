@@ -339,12 +339,20 @@
 
                         // Wait for buffer space AFTER download (prevents overflow)
                         while (downloadBuffer.size >= MAX_DOWNLOAD_BUFFER && !pipelineError) {
+                            // Check if watchdog reset this chunk - discard if so
+                            if (chunkState[chunkIndex] === 'pending') {
+                                console.log(`[WORKER] Discarding chunk ${chunkIndex} - watchdog reset it`);
+                                break;
+                            }
                             await new Promise(r => setTimeout(r, 50));
                         }
                         if (pipelineError) break;
 
-                        downloadBuffer.set(chunkIndex, data);
-                        chunkState[chunkIndex] = 'downloaded';
+                        // Only add to buffer if still in downloading state
+                        if (chunkState[chunkIndex] === 'downloading') {
+                            downloadBuffer.set(chunkIndex, data);
+                            chunkState[chunkIndex] = 'downloaded';
+                        }
                     } catch (err) {
                         chunkState[chunkIndex] = 'pending';
                         if (err.is404) {
@@ -457,18 +465,17 @@
                         console.log(`[WATCHDOG] nextChunkToWrite=${nextChunkToWrite}, downloadBuffer=${downloadBuffer.size}, verifiedBuffer=${verifiedBuffer.size}`);
                         console.log(`[WATCHDOG] Chunk ${nextChunkToWrite} state: ${chunkState[nextChunkToWrite]}`);
 
-                        // Clear buffers of chunks that are too far ahead (can't use them yet)
-                        const maxAhead = MAX_DOWNLOAD_BUFFER + MAX_VERIFIED_BUFFER + 10;
+                        // Clear ALL buffered chunks except nextChunkToWrite - make room for critical chunk
                         for (const idx of downloadBuffer.keys()) {
-                            if (idx > nextChunkToWrite + maxAhead) {
-                                console.log(`[WATCHDOG] Evicting download buffer chunk ${idx} (too far ahead)`);
+                            if (idx !== nextChunkToWrite) {
+                                console.log(`[WATCHDOG] Evicting download buffer chunk ${idx}`);
                                 downloadBuffer.delete(idx);
                                 chunkState[idx] = 'pending';
                             }
                         }
                         for (const idx of verifiedBuffer.keys()) {
-                            if (idx > nextChunkToWrite + maxAhead) {
-                                console.log(`[WATCHDOG] Evicting verified buffer chunk ${idx} (too far ahead)`);
+                            if (idx !== nextChunkToWrite) {
+                                console.log(`[WATCHDOG] Evicting verified buffer chunk ${idx}`);
                                 verifiedBuffer.delete(idx);
                                 chunkState[idx] = 'pending';
                             }
