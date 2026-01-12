@@ -171,7 +171,7 @@ app.get('/api/info/:id', (req, res) => {
         chunkHashes: fileInfo.chunkHashes,
         chunksReceived: fileInfo.chunksReceived.size,
         complete: fileInfo.chunksReceived.size === fileInfo.totalChunks,
-        chunkSize: fileInfo.chunkSize || (4 * 1024 * 1024),  // Use file's chunk size, fallback to 4MB for legacy files
+        chunkSize: fileInfo.chunkSize || CHUNK_SIZE,  // Use file's chunk size, fallback for old files
         targetBufferMemory: TARGET_BUFFER_MEMORY
     });
 });
