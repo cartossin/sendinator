@@ -298,19 +298,15 @@
 
             // Track chunk completion times for speed calculation
             const chunkCompletions = []; // array of timestamps
-            const speedStartTime = Date.now();
 
             // Update speed display once per second
             const speedInterval = setInterval(() => {
                 const now = Date.now();
-                if (now - speedStartTime < 30000) {
-                    progressSpeed.textContent = 'computing speed...';
-                } else {
-                    const recent = chunkCompletions.filter(t => t > now - 30000);
-                    if (recent.length > 0) {
-                        const speed = recent.length * CHUNK_SIZE / 30;
-                        progressSpeed.textContent = formatBytes(speed) + '/s';
-                    }
+                const recent = chunkCompletions.filter(t => t > now - 30000);
+                if (recent.length > 0) {
+                    const windowSeconds = Math.min(30, (now - chunkCompletions[0]) / 1000);
+                    const speed = recent.length * CHUNK_SIZE / windowSeconds;
+                    progressSpeed.textContent = formatBytes(speed) + '/s';
                 }
             }, 1000);
 
