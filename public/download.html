@@ -149,7 +149,7 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v1.4.0</div>
+    <div class="version">v1.5.0</div>
 
     <script src="/spark-md5.min.js"></script>
     <script>
@@ -282,21 +282,32 @@
 
                 try {
                     console.log(`Downloading chunk ${index}...`);
-                    const data = await downloadChunk(index);
+                    let data = await downloadChunk(index);
                     console.log(`Chunk ${index} downloaded (${data.byteLength} bytes), hashing...`);
 
                     const hash = await hashData(data);
                     if (hash !== fileInfo.chunkHashes[index]) {
                         console.warn(`Chunk ${index} hash mismatch, will retry`);
                         chunkStatus[index] = 'pending';
+                        data = null; // Help GC
                         return;
                     }
                     console.log(`Chunk ${index} hash verified, adding to buffer`);
 
-                    chunkBuffer.set(index, new Uint8Array(data));
+                    // Wait if buffer is full before adding more
+                    while (chunkBuffer.size >= MAX_BUFFER_CHUNKS) {
+                        console.log(`Buffer full (${chunkBuffer.size}), waiting for disk writes...`);
+                        await new Promise(r => setTimeout(r, 50));
+                    }
+
+                    // Copy data to Uint8Array and release original ArrayBuffer
+                    const chunk = new Uint8Array(data);
+                    data = null; // Help GC release the ArrayBuffer
+
+                    chunkBuffer.set(index, chunk);
                     await flushBufferToDisk();
 
-                    downloadedBytes += data.byteLength;
+                    downloadedBytes += chunk.byteLength;
                     chunkCompletions.push(Date.now());
                     chunkStatus[index] = 'done';
                     updateProgress();
@@ -323,12 +334,6 @@
                             await new Promise(r => setTimeout(r, waitTime));
                             status.className = 'status downloading';
                         }
-                    }
-
-                    // Wait if buffer is too full (prevents memory issues on large files)
-                    while (chunkBuffer.size >= MAX_BUFFER_CHUNKS) {
-                        await new Promise(r => setTimeout(r, 100));
-                        await flushBufferToDisk();
                     }
 
                     // Don't download too far ahead of what we've written to disk
