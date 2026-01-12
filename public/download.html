@@ -149,7 +149,7 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v1.6.0</div>
+    <div class="version">v1.7.0</div>
 
     <script src="/spark-md5.min.js"></script>
     <script>
@@ -238,6 +238,7 @@
             const chunkStatus = new Array(fileInfo.totalChunks).fill('pending');
             let downloadedBytes = 0;
             let nextChunkToWrite = 0;
+            let flushInProgress = false;
 
             // Track chunk completion times for speed calculation
             const chunkCompletions = [];
@@ -261,18 +262,23 @@
             }
 
             async function flushBufferToDisk() {
-                while (chunkBuffer.has(nextChunkToWrite)) {
-                    const data = chunkBuffer.get(nextChunkToWrite);
-                    try {
-                        console.log(`Writing chunk ${nextChunkToWrite} to disk (${data.byteLength} bytes, buffer size: ${chunkBuffer.size})`);
+                if (flushInProgress) return; // Prevent concurrent flushes
+                flushInProgress = true;
+                try {
+                    while (chunkBuffer.has(nextChunkToWrite)) {
+                        const chunkIndex = nextChunkToWrite;
+                        const data = chunkBuffer.get(chunkIndex);
+                        console.log(`Writing chunk ${chunkIndex} to disk (${data.byteLength} bytes, buffer size: ${chunkBuffer.size})`);
                         await writable.write(data);
-                        console.log(`Chunk ${nextChunkToWrite} written successfully`);
-                    } catch (err) {
-                        console.error(`Failed to write chunk ${nextChunkToWrite}:`, err);
-                        throw err;
+                        console.log(`Chunk ${chunkIndex} written successfully`);
+                        chunkBuffer.delete(chunkIndex);
+                        nextChunkToWrite++;
                     }
-                    chunkBuffer.delete(nextChunkToWrite);
-                    nextChunkToWrite++;
+                } catch (err) {
+                    console.error(`Failed to write chunk ${nextChunkToWrite}:`, err);
+                    throw err;
+                } finally {
+                    flushInProgress = false;
                 }
             }
 
