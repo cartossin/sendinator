@@ -84,7 +84,20 @@ Apply same buffering/pipeline approach used for downloads:
 ### Folder Upload: Tar Streaming
 
 Support uploading entire folders:
-- Client creates tar stream on-the-fly
+- Client creates tar stream on-the-fly (pure JS, no library)
+- Tar is uncompressed - just concatenation with 512-byte headers, maximum speed
 - Streams through existing chunked upload
-- Download extracts tar or offers as archive
 - No temp storage needed on client
+
+Download side:
+- File System Access API (`showDirectoryPicker()`) lets user select destination folder
+- JS parses tar stream and writes files directly to disk as they arrive
+- Can handle millions of files - processes one at a time, memory stays flat
+- Resume support: track `{ tarByteOffset, currentFilePath, bytesWritten }` in IndexedDB
+- Browser support: Chrome, Edge, Opera
+
+### Firefox/Safari Fallback
+
+These browsers lack full File System Access API support:
+- Download: Fall back to direct browser download (single .tar file) instead of JS streaming
+- Upload: Standard file picker (no folder upload until APIs improve)
