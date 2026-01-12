@@ -149,12 +149,12 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v1.3.0</div>
+    <div class="version">v1.4.0</div>
 
     <script src="/spark-md5.min.js"></script>
     <script>
-        const PARALLEL_DOWNLOADS = 4;
-        const MAX_BUFFER_CHUNKS = 10; // Don't download too far ahead (40MB max buffer)
+        const PARALLEL_DOWNLOADS = 6;
+        const MAX_BUFFER_CHUNKS = 20; // Don't download too far ahead
 
         const fileId = window.location.pathname.split('/').pop();
         let fileInfo = null;
@@ -263,7 +263,14 @@
             async function flushBufferToDisk() {
                 while (chunkBuffer.has(nextChunkToWrite)) {
                     const data = chunkBuffer.get(nextChunkToWrite);
-                    await writable.write(data);
+                    try {
+                        console.log(`Writing chunk ${nextChunkToWrite} to disk (${data.byteLength} bytes, buffer size: ${chunkBuffer.size})`);
+                        await writable.write(data);
+                        console.log(`Chunk ${nextChunkToWrite} written successfully`);
+                    } catch (err) {
+                        console.error(`Failed to write chunk ${nextChunkToWrite}:`, err);
+                        throw err;
+                    }
                     chunkBuffer.delete(nextChunkToWrite);
                     nextChunkToWrite++;
                 }
@@ -274,13 +281,17 @@
                 chunkStatus[index] = 'downloading';
 
                 try {
+                    console.log(`Downloading chunk ${index}...`);
                     const data = await downloadChunk(index);
+                    console.log(`Chunk ${index} downloaded (${data.byteLength} bytes), hashing...`);
+
                     const hash = await hashData(data);
                     if (hash !== fileInfo.chunkHashes[index]) {
-                        console.log(`Chunk ${index} hash mismatch, will retry`);
+                        console.warn(`Chunk ${index} hash mismatch, will retry`);
                         chunkStatus[index] = 'pending';
                         return;
                     }
+                    console.log(`Chunk ${index} hash verified, adding to buffer`);
 
                     chunkBuffer.set(index, new Uint8Array(data));
                     await flushBufferToDisk();
@@ -290,8 +301,7 @@
                     chunkStatus[index] = 'done';
                     updateProgress();
                 } catch (err) {
-                    // Network error or chunk not ready - will retry
-                    console.log(`Chunk ${index} error: ${err.message}, will retry`);
+                    console.error(`Chunk ${index} error:`, err);
                     chunkStatus[index] = 'pending';
                 }
             }
@@ -377,20 +387,21 @@
                 try {
                     const res = await fetch(`/api/chunk/${fileId}/${index}`);
                     if (res.status === 404) {
-                        // Chunk not uploaded yet - throw specific error for caller to handle
                         throw new Error(`Chunk ${index} not yet uploaded: 404`);
                     }
                     if (!res.ok) {
                         throw new Error(`Chunk ${index} failed: ${res.status}`);
                     }
-                    return await res.arrayBuffer();
+                    const contentLength = res.headers.get('content-length');
+                    console.log(`Chunk ${index} response received, content-length: ${contentLength}, reading arrayBuffer...`);
+                    const buffer = await res.arrayBuffer();
+                    console.log(`Chunk ${index} arrayBuffer read: ${buffer.byteLength} bytes`);
+                    return buffer;
                 } catch (err) {
-                    // If it's a 404, let the caller handle it (chunk not ready yet)
                     if (err.message.includes('404')) throw err;
-                    // Network error - retry with backoff
                     attempt++;
                     const waitTime = Math.min(attempt * 1000, 5000);
-                    console.log(`Download retry ${attempt} for chunk ${index}: ${err.message}`);
+                    console.warn(`Download retry ${attempt} for chunk ${index}: ${err.message}`);
                     await new Promise(r => setTimeout(r, waitTime));
                 }
             }
