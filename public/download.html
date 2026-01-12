@@ -326,12 +326,18 @@
                         downloadBuffer.set(chunkIndex, data);
                         chunkState[chunkIndex] = 'downloaded';
                     } catch (err) {
-                        // 404 means chunk not uploaded yet - wait and retry
+                        chunkState[chunkIndex] = 'pending';
                         if (err.is404) {
-                            chunkState[chunkIndex] = 'pending';
+                            // Chunk not uploaded yet - wait for upload to catch up
                             await new Promise(r => setTimeout(r, 500));
+                        } else if (err.isRetryable || err.message?.includes('fetch')) {
+                            // Server error or network error - show status and retry
+                            status.className = 'status error';
+                            status.textContent = `Connection lost - retrying...`;
+                            await new Promise(r => setTimeout(r, 1000));
                         } else {
-                            chunkState[chunkIndex] = 'pending';
+                            // Unknown error - brief pause and retry
+                            await new Promise(r => setTimeout(r, 500));
                         }
                     }
                 }
@@ -488,31 +494,15 @@
         }
 
         async function downloadChunk(index) {
-            // Retry indefinitely for network errors, but throw on 404 (chunk not ready)
-            let attempt = 0;
-            while (true) {
-                try {
-                    const res = await fetch(`/api/chunk/${fileId}/${index}`);
-                    if (res.status === 404) {
-                        throw { is404: true, message: `Chunk ${index} not yet uploaded` };
-                    }
-                    if (!res.ok) {
-                        throw new Error(`HTTP ${res.status}`);
-                    }
-                    // Clear retry status on success
-                    if (attempt > 0) {
-                        status.className = 'status downloading';
-                    }
-                    return await res.arrayBuffer();
-                } catch (err) {
-                    if (err.is404) throw err;
-                    attempt++;
-                    const waitTime = Math.min(attempt * 1000, 5000);
-                    status.className = 'status error';
-                    status.textContent = `Connection lost - retrying in ${waitTime/1000}s... (attempt ${attempt})`;
-                    await new Promise(r => setTimeout(r, waitTime));
-                }
+            // Try once - let worker handle retry logic to avoid blocking
+            const res = await fetch(`/api/chunk/${fileId}/${index}`);
+            if (res.status === 404) {
+                throw { is404: true, message: `Chunk ${index} not yet uploaded` };
             }
+            if (!res.ok) {
+                throw { isRetryable: true, message: `HTTP ${res.status}` };
+            }
+            return await res.arrayBuffer();
         }
 
         async function hashData(arrayBuffer) {
