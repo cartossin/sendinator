@@ -108,6 +108,7 @@ Passkey-based admin authentication:
 - On first launch, prompt to create a passkey (WebAuthn) stored by browser/OS
 - Passkey grants access to admin panel
 - No passwords to remember or leak
+- To reset: delete the passkey file and restart (prompts for new passkey)
 
 Upload key system:
 - Admin can issue upload keys with bandwidth limits (e.g., "50GB one-time upload")
