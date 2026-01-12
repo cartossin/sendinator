@@ -149,7 +149,7 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v2.2.1</div>
+    <div class="version">v2.2.2</div>
 
     <script>
         // Pipeline configuration
@@ -273,17 +273,24 @@
                 chunkInfo.textContent = `${formatBytes(writtenBytes)} / ${formatBytes(fileInfo.size)} | DL:${downloadBuffer.size} VF:${verifiedBuffer.size}`;
             }
 
+            // === FILE INFO REFRESHER (for progressive downloads only) ===
+            async function fileInfoRefresher() {
+                // Only refresh if file upload is still in progress
+                while (!pipelineError && !fileInfo.complete) {
+                    await new Promise(r => setTimeout(r, 2000));  // Check every 2 seconds
+                    if (pipelineError || chunkState.every(s => s === 'done')) break;
+                    try {
+                        const res = await fetch(`/api/info/${fileId}`);
+                        if (res.ok) fileInfo = await res.json();
+                    } catch (e) { /* ignore, use cached */ }
+                }
+            }
+
             // === DOWNLOAD WORKER ===
             async function downloadWorker(workerId) {
                 while (!pipelineError) {
                     // Check if all done
                     if (chunkState.every(s => s === 'done')) break;
-
-                    // Refresh file info to get latest chunk hashes (for progressive download)
-                    try {
-                        const res = await fetch(`/api/info/${fileId}`);
-                        if (res.ok) fileInfo = await res.json();
-                    } catch (e) { /* ignore, use cached */ }
 
                     // Find next pending chunk that's available (has hash from server)
                     let chunkIndex = -1;
@@ -433,6 +440,8 @@
             try {
                 // Start all pipeline workers
                 await Promise.all([
+                    // File info refresher (only active for progressive downloads)
+                    fileInfoRefresher(),
                     // Download workers
                     ...Array(PARALLEL_DOWNLOADS).fill().map((_, i) => downloadWorker(i)),
                     // Hash workers
