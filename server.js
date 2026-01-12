@@ -12,7 +12,7 @@ const app = express();
 // === CONFIGURATION ===
 const PORT = process.env.PORT || 3000;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
-const CHUNK_SIZE = 4 * 1024 * 1024;         // 4MB chunks (can change for new uploads)
+const CHUNK_SIZE = 16 * 1024 * 1024;        // 16MB chunks (can change for new uploads)
 const TARGET_BUFFER_MEMORY = 100 * 1024 * 1024; // 100MB target buffer memory for clients
 
 // Ensure upload directory exists
