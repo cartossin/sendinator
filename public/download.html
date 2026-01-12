@@ -149,12 +149,12 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v1.2.0</div>
+    <div class="version">v1.3.0</div>
 
     <script src="/spark-md5.min.js"></script>
     <script>
-        const PARALLEL_DOWNLOADS = 6;
-        const MAX_BUFFER_CHUNKS = 20; // Don't download too far ahead
+        const PARALLEL_DOWNLOADS = 4;
+        const MAX_BUFFER_CHUNKS = 10; // Don't download too far ahead (40MB max buffer)
 
         const fileId = window.location.pathname.split('/').pop();
         let fileInfo = null;
@@ -313,6 +313,12 @@
                             await new Promise(r => setTimeout(r, waitTime));
                             status.className = 'status downloading';
                         }
+                    }
+
+                    // Wait if buffer is too full (prevents memory issues on large files)
+                    while (chunkBuffer.size >= MAX_BUFFER_CHUNKS) {
+                        await new Promise(r => setTimeout(r, 100));
+                        await flushBufferToDisk();
                     }
 
                     // Don't download too far ahead of what we've written to disk
