@@ -205,20 +205,43 @@
         downloadBtn.addEventListener('click', startDownload);
 
         async function startDownload() {
+            // Try to use File System Access API for streaming to disk
+            let fileHandle = null;
+            let writable = null;
+
+            if (window.showSaveFilePicker) {
+                try {
+                    fileHandle = await window.showSaveFilePicker({
+                        suggestedName: fileInfo.filename,
+                        types: [{
+                            description: 'File',
+                            accept: { 'application/octet-stream': [] }
+                        }]
+                    });
+                    writable = await fileHandle.createWritable();
+                } catch (err) {
+                    if (err.name === 'AbortError') return; // User cancelled
+                    console.log('File System API failed, falling back to memory mode');
+                }
+            }
+
+            const streamMode = writable !== null;
+
             downloadBtn.disabled = true;
             downloadBtn.textContent = 'Downloading...';
             progressContainer.classList.add('active');
             status.className = 'status downloading';
-            status.textContent = 'Downloading available chunks...';
+            status.textContent = streamMode ? 'Downloading to disk...' : 'Downloading...';
 
-            const chunks = new Array(fileInfo.totalChunks);
-            const chunkStatus = new Array(fileInfo.totalChunks).fill('pending'); // pending, downloading, done
+            const chunkBuffer = new Map(); // For stream mode: holds chunks waiting to be written
+            const chunks = streamMode ? null : new Array(fileInfo.totalChunks); // For memory mode
+            const chunkStatus = new Array(fileInfo.totalChunks).fill('pending');
             let downloadedBytes = 0;
+            let nextChunkToWrite = 0;
 
             // Track chunk completion times for speed calculation
-            const chunkCompletions = []; // array of timestamps
+            const chunkCompletions = [];
 
-            // Update speed display once per second
             const speedInterval = setInterval(() => {
                 const now = Date.now();
                 const recent = chunkCompletions.filter(t => t > now - 30000);
@@ -237,24 +260,38 @@
                 chunkInfo.textContent = `${formatBytes(downloadedBytes)} / ${formatBytes(fileInfo.size)}`;
             }
 
+            async function flushBufferToDisk() {
+                while (chunkBuffer.has(nextChunkToWrite)) {
+                    const data = chunkBuffer.get(nextChunkToWrite);
+                    await writable.write(data);
+                    chunkBuffer.delete(nextChunkToWrite);
+                    nextChunkToWrite++;
+                }
+            }
+
             async function downloadAvailableChunk(index) {
                 if (chunkStatus[index] !== 'pending') return;
                 chunkStatus[index] = 'downloading';
 
                 try {
                     const data = await downloadChunk(index);
-                    // Verify hash
                     const hash = await hashData(data);
                     if (hash !== fileInfo.chunkHashes[index]) {
                         throw new Error(`Chunk ${index} hash mismatch`);
                     }
-                    chunks[index] = data;
+
+                    if (streamMode) {
+                        chunkBuffer.set(index, new Uint8Array(data));
+                        await flushBufferToDisk();
+                    } else {
+                        chunks[index] = data;
+                    }
+
                     downloadedBytes += data.byteLength;
                     chunkCompletions.push(Date.now());
                     chunkStatus[index] = 'done';
                     updateProgress();
                 } catch (err) {
-                    // If chunk not ready yet (404), mark as pending to retry
                     if (err.message.includes('404') || err.message.includes('not yet')) {
                         chunkStatus[index] = 'pending';
                     } else {
@@ -264,9 +301,7 @@
             }
 
             try {
-                // Keep trying until all chunks are downloaded
                 while (chunkStatus.some(s => s !== 'done')) {
-                    // Refresh file info to get latest chunk availability (with retry)
                     let infoRetries = 0;
                     while (true) {
                         try {
@@ -284,7 +319,6 @@
                         }
                     }
 
-                    // Find chunks that are available (have hashes) but not yet downloaded
                     const availableChunks = [];
                     for (let i = 0; i < fileInfo.totalChunks; i++) {
                         if (chunkStatus[i] === 'pending' && fileInfo.chunkHashes[i]) {
@@ -293,7 +327,6 @@
                     }
 
                     if (availableChunks.length > 0) {
-                        // Download available chunks in parallel
                         const batch = availableChunks.slice(0, PARALLEL_DOWNLOADS);
                         await Promise.all(batch.map(i => downloadAvailableChunk(i)));
 
@@ -302,45 +335,52 @@
                             status.textContent = `Downloading... (waiting for ${waitingCount} chunks to upload)`;
                         }
                     } else if (!fileInfo.complete) {
-                        // No chunks available yet, wait and poll
                         const waitingCount = chunkStatus.filter(s => s === 'pending').length;
                         status.textContent = `Waiting for sender to upload ${waitingCount} more chunks...`;
                         await new Promise(r => setTimeout(r, 500));
                     }
                 }
 
-                // All chunks downloaded - assemble file
                 clearInterval(speedInterval);
-                status.className = 'status verifying';
-                status.textContent = 'Assembling file...';
 
-                const uint8Arrays = chunks.map(ab => new Uint8Array(ab));
-                const blob = new Blob(uint8Arrays, { type: 'application/octet-stream' });
+                if (streamMode) {
+                    await writable.close();
+                    status.className = 'status complete';
+                    status.textContent = 'Download complete! File saved to disk.';
+                } else {
+                    status.className = 'status verifying';
+                    status.textContent = 'Assembling file...';
 
-                // Trigger download
-                status.className = 'status complete';
-                status.textContent = 'Download complete! All chunks verified.';
+                    const uint8Arrays = chunks.map(ab => new Uint8Array(ab));
+                    const blob = new Blob(uint8Arrays, { type: 'application/octet-stream' });
+
+                    status.className = 'status complete';
+                    status.textContent = 'Download complete! All chunks verified.';
+
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = fileInfo.filename;
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    }, 1000);
+                }
+
                 progressFill.style.width = '100%';
                 progressPercent.textContent = '100%';
-
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = fileInfo.filename;
-                a.style.display = 'none';
-                document.body.appendChild(a);
-                a.click();
-
-                setTimeout(() => {
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                }, 1000);
-
                 downloadBtn.disabled = false;
                 downloadBtn.textContent = 'Download Again';
 
             } catch (err) {
                 clearInterval(speedInterval);
+                if (writable) {
+                    try { await writable.abort(); } catch(e) {}
+                }
                 console.error('Download error:', err);
                 status.className = 'status error';
                 status.textContent = 'Error: ' + err.message;
