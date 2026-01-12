@@ -277,7 +277,7 @@
                 const progress = (doneCount / fileInfo.totalChunks * 100);
                 progressFill.style.width = progress.toFixed(1) + '%';
                 progressPercent.textContent = `${doneCount}/${fileInfo.totalChunks}`;
-                chunkInfo.textContent = `${formatBytes(writtenBytes)} / ${formatBytes(fileInfo.size)} | DL:${downloadBuffer.size} VF:${verifiedBuffer.size}`;
+                chunkInfo.textContent = `${formatBytes(writtenBytes)} / ${formatBytes(fileInfo.size)} | Buffered: ${downloadBuffer.size + verifiedBuffer.size} chunks`;
             }
 
             // === FILE INFO REFRESHER (for progressive downloads only) ===
@@ -508,9 +508,9 @@
                     const pending = chunkState.filter(s => s === 'pending').length;
 
                     if (pending > 0 && !fileInfo.complete) {
-                        status.textContent = `Buffer stats: ${downloading} downloading, ${hashing} hashing | Written: ${nextChunkToWrite}/${fileInfo.totalChunks} (waiting for upload)`;
+                        status.textContent = `${downloading} downloading | ${nextChunkToWrite}/${fileInfo.totalChunks} written (waiting for upload)`;
                     } else {
-                        status.textContent = `Buffer stats: ${downloading} downloading, ${hashing} hashing | Written: ${nextChunkToWrite}/${fileInfo.totalChunks}`;
+                        status.textContent = `${downloading} downloading | ${nextChunkToWrite}/${fileInfo.totalChunks} written`;
                     }
 
                     // Log bottleneck analysis every 5 seconds
