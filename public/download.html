@@ -377,19 +377,38 @@
                     // Check if all done
                     if (chunkState.every(s => s === 'done')) break;
 
-                    // Wait if verified buffer is full
-                    if (verifiedBuffer.size >= MAX_VERIFIED_BUFFER) {
-                        await new Promise(r => setTimeout(r, 50));
-                        continue;
-                    }
-
-                    // Find a downloaded chunk to hash
+                    // Find a downloaded chunk to hash - prioritize critical chunk (nextChunkToWrite)
                     let chunkIndex = -1;
-                    for (let i = 0; i < fileInfo.totalChunks; i++) {
-                        if (chunkState[i] === 'downloaded') {
-                            chunkIndex = i;
-                            chunkState[i] = 'hashing';
-                            break;
+
+                    // First: check if the critical chunk needs hashing
+                    if (chunkState[nextChunkToWrite] === 'downloaded') {
+                        chunkIndex = nextChunkToWrite;
+                        chunkState[chunkIndex] = 'hashing';
+                        // Make room if needed - evict furthest chunk
+                        if (verifiedBuffer.size >= MAX_VERIFIED_BUFFER) {
+                            let maxIdx = -1;
+                            for (const idx of verifiedBuffer.keys()) {
+                                if (idx > maxIdx) maxIdx = idx;
+                            }
+                            if (maxIdx > nextChunkToWrite) {
+                                verifiedBuffer.delete(maxIdx);
+                                chunkState[maxIdx] = 'pending';
+                            }
+                        }
+                    } else {
+                        // Wait if verified buffer is full (non-critical chunks can wait)
+                        if (verifiedBuffer.size >= MAX_VERIFIED_BUFFER) {
+                            await new Promise(r => setTimeout(r, 50));
+                            continue;
+                        }
+
+                        // Find any downloaded chunk, prioritizing lower indices
+                        for (let i = nextChunkToWrite; i < fileInfo.totalChunks; i++) {
+                            if (chunkState[i] === 'downloaded') {
+                                chunkIndex = i;
+                                chunkState[i] = 'hashing';
+                                break;
+                            }
                         }
                     }
 
