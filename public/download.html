@@ -298,13 +298,27 @@
                     // Check if all done
                     if (chunkState.every(s => s === 'done')) break;
 
-                    // Find next pending chunk that's available (has hash from server)
+                    // Find next pending chunk - prioritize chunks near nextChunkToWrite
+                    // This prevents deadlock where buffers fill with later chunks
                     let chunkIndex = -1;
-                    for (let i = 0; i < fileInfo.totalChunks; i++) {
+
+                    // First: look for pending chunks from nextChunkToWrite onwards (priority)
+                    for (let i = nextChunkToWrite; i < fileInfo.totalChunks; i++) {
                         if (chunkState[i] === 'pending' && fileInfo.chunkHashes[i]) {
                             chunkIndex = i;
                             chunkState[i] = 'downloading';
                             break;
+                        }
+                    }
+
+                    // Fallback: check earlier chunks (shouldn't normally happen)
+                    if (chunkIndex === -1) {
+                        for (let i = 0; i < nextChunkToWrite; i++) {
+                            if (chunkState[i] === 'pending' && fileInfo.chunkHashes[i]) {
+                                chunkIndex = i;
+                                chunkState[i] = 'downloading';
+                                break;
+                            }
                         }
                     }
 
@@ -518,6 +532,9 @@
                 return await res.arrayBuffer();
             } catch (err) {
                 clearTimeout(timeout);
+                // Re-throw our custom error objects as-is
+                if (err.is404 || err.isRetryable) throw err;
+                // Wrap other errors (network failures, timeouts)
                 if (err.name === 'AbortError') {
                     throw { isRetryable: true, message: 'Request timeout' };
                 }
