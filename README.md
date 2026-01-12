@@ -1,8 +1,8 @@
+# Not fully tested yet; use with caution
+
 # Sendinator
 
 Chunked file sharing with progressive downloads.
-
-> Not fully tested yet. Just made this with Claude Code.
 
 ## Features
 
