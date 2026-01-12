@@ -36,15 +36,29 @@ const files = new Map();
 
 // Load existing files from disk on startup
 function loadFilesFromDisk() {
+    if (!fs.existsSync(UPLOAD_DIR)) return;
     const dirs = fs.readdirSync(UPLOAD_DIR);
     for (const id of dirs) {
         const metaPath = path.join(UPLOAD_DIR, id, 'meta.json');
         if (fs.existsSync(metaPath)) {
             try {
                 const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-                meta.chunksReceived = new Set(meta.chunksReceived);
+
+                // Scan for actual chunk files instead of trusting meta.chunksReceived
+                const fileDir = path.join(UPLOAD_DIR, id);
+                const chunkFiles = fs.readdirSync(fileDir).filter(f => f.startsWith('chunk_'));
+                const actualChunks = new Set();
+                for (const f of chunkFiles) {
+                    const idx = parseInt(f.replace('chunk_', ''), 10);
+                    if (!isNaN(idx)) actualChunks.add(idx);
+                }
+
+                // Use actual chunks found on disk
+                meta.chunksReceived = actualChunks;
                 files.set(id, meta);
-                console.log(`Loaded: ${id} - ${meta.filename}`);
+
+                const status = actualChunks.size === meta.totalChunks ? 'complete' : `${actualChunks.size}/${meta.totalChunks}`;
+                console.log(`Loaded: ${id} - ${meta.filename} (${status})`);
             } catch (err) {
                 console.error(`Failed to load ${id}:`, err.message);
             }
@@ -181,31 +195,43 @@ const server = http.createServer(async (req, res) => {
             });
 
             req.on('end', () => {
-                const data = Buffer.concat(chunks);
-                const computedHash = hash.digest('hex');
+                try {
+                    const data = Buffer.concat(chunks);
+                    const computedHash = hash.digest('hex');
 
-                if (expectedHash && computedHash !== expectedHash) {
-                    return sendJson(res, 400, {
-                        error: 'Hash mismatch',
-                        expected: expectedHash,
-                        got: computedHash
+                    if (expectedHash && computedHash !== expectedHash) {
+                        return sendJson(res, 400, {
+                            error: 'Hash mismatch',
+                            expected: expectedHash,
+                            got: computedHash
+                        });
+                    }
+
+                    const chunkPath = path.join(UPLOAD_DIR, id, `chunk_${chunkIndex}`);
+                    fs.writeFileSync(chunkPath, data);
+
+                    // Verify chunk was written correctly
+                    const stat = fs.statSync(chunkPath);
+                    if (stat.size !== data.length) {
+                        throw new Error(`Chunk size mismatch: wrote ${data.length}, got ${stat.size}`);
+                    }
+
+                    fileInfo.chunkHashes[chunkIndex] = computedHash;
+                    fileInfo.chunksReceived.add(chunkIndex);
+                    saveMetadata(id, fileInfo);
+
+                    const progress = (fileInfo.chunksReceived.size / fileInfo.totalChunks * 100).toFixed(1);
+                    console.log(`Chunk ${chunkIndex}/${fileInfo.totalChunks - 1} received for ${id} (${progress}%)`);
+
+                    sendJson(res, 200, {
+                        success: true,
+                        chunksReceived: fileInfo.chunksReceived.size,
+                        totalChunks: fileInfo.totalChunks
                     });
+                } catch (err) {
+                    console.error(`Chunk ${chunkIndex} write failed for ${id}:`, err.message);
+                    sendJson(res, 500, { error: 'Chunk write failed: ' + err.message });
                 }
-
-                const chunkPath = path.join(UPLOAD_DIR, id, `chunk_${chunkIndex}`);
-                fs.writeFileSync(chunkPath, data);
-                fileInfo.chunkHashes[chunkIndex] = computedHash;
-                fileInfo.chunksReceived.add(chunkIndex);
-                saveMetadata(id, fileInfo);
-
-                const progress = (fileInfo.chunksReceived.size / fileInfo.totalChunks * 100).toFixed(1);
-                console.log(`Chunk ${chunkIndex}/${fileInfo.totalChunks - 1} received for ${id} (${progress}%)`);
-
-                sendJson(res, 200, {
-                    success: true,
-                    chunksReceived: fileInfo.chunksReceived.size,
-                    totalChunks: fileInfo.totalChunks
-                });
             });
 
             req.on('error', (err) => {
