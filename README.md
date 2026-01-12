@@ -6,7 +6,8 @@ Chunked file sharing with progressive downloads.
 
 ## Features
 
-- Chunked uploads (4MB chunks) with SHA-256 verification
+- Chunked uploads (16MB default, configurable) with SHA-256 verification
+- Zero third-party dependencies - pure Node.js
 - Progressive downloads - recipients can start downloading before upload completes
 - Resilient to network interruptions (infinite retry with backoff)
 - No file size limits
@@ -68,4 +69,44 @@ server {
 
 ## Storage
 
-Uploaded chunks are stored in `./uploads/`. Clean this directory periodically to free space.
+Uploaded chunks are stored in `./uploads/`. Files are automatically cleaned up after 24 hours.
+
+## TODO: Future Optimizations
+
+These optimizations could dramatically improve performance but add deployment complexity.
+
+### Download Speed: X-Accel-Redirect (nginx serves files)
+
+Currently Node.js streams every byte, which uses CPU. With X-Accel-Redirect:
+- Node.js handles auth/tracking only (~0 CPU)
+- nginx serves files directly from disk (kernel-level efficient)
+- Potential 10-20x CPU reduction
+
+Would require nginx config:
+```nginx
+location /internal-chunks/ {
+    internal;
+    alias /path/to/sendinator/uploads/;
+}
+```
+
+Node.js returns header instead of file bytes:
+```javascript
+res.setHeader('X-Accel-Redirect', `/internal-chunks/${id}/chunk_${index}`);
+res.end();
+```
+
+### Upload Speed: Pipeline Architecture
+
+Apply same buffering/pipeline approach used for downloads:
+- Separate workers for receiving, hashing, writing
+- Decouple network I/O from CPU (hashing) from disk I/O
+- Could improve upload throughput significantly
+
+### Folder Upload: Tar Streaming
+
+Support uploading entire folders:
+- Client creates tar stream on-the-fly
+- Streams through existing chunked upload
+- Download extracts tar or offers as archive
+- No temp storage needed on client
