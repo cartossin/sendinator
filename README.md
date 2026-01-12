@@ -36,6 +36,15 @@ pm2 save
 pm2 startup
 ```
 
+## Update
+
+```bash
+cd sendinator
+git pull
+npm install
+pm2 restart sendinator
+```
+
 ## Reverse Proxy (nginx)
 
 ```nginx
