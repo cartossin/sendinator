@@ -111,6 +111,7 @@
             text-decoration: none;
         }
         .home-link:hover { text-decoration: underline; }
+        .version { position: fixed; bottom: 10px; right: 10px; color: #444; font-size: 0.75em; }
     </style>
 </head>
 <body>
@@ -148,9 +149,12 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
+    <div class="version">v1.1.0</div>
+
     <script src="/spark-md5.min.js"></script>
     <script>
         const PARALLEL_DOWNLOADS = 6;
+        const MAX_BUFFER_CHUNKS = 20; // Don't download too far ahead
 
         const fileId = window.location.pathname.split('/').pop();
         let fileInfo = null;
@@ -311,8 +315,11 @@
                         }
                     }
 
+                    // Don't download too far ahead of what we've written to disk
+                    const maxChunkToDownload = nextChunkToWrite + MAX_BUFFER_CHUNKS;
+
                     const availableChunks = [];
-                    for (let i = 0; i < fileInfo.totalChunks; i++) {
+                    for (let i = 0; i < fileInfo.totalChunks && i < maxChunkToDownload; i++) {
                         if (chunkStatus[i] === 'pending' && fileInfo.chunkHashes[i]) {
                             availableChunks.push(i);
                         }
