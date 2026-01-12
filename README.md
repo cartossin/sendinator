@@ -6,7 +6,7 @@ Chunked file sharing with progressive downloads.
 
 ## Features
 
-- Chunked uploads (4MB chunks) with MD5 verification
+- Chunked uploads (4MB chunks) with SHA-256 verification
 - Progressive downloads - recipients can start downloading before upload completes
 - Resilient to network interruptions (infinite retry with backoff)
 - No file size limits

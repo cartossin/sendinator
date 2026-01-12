@@ -149,11 +149,14 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v2.0.0</div>
+    <div class="version">v2.1.1</div>
 
     <script>
-        const PARALLEL_DOWNLOADS = 3;
-        const MAX_BUFFER_CHUNKS = 20; // Don't download too far ahead
+        // Pipeline configuration
+        const PARALLEL_DOWNLOADS = 6;
+        const PARALLEL_HASHES = 3;
+        const MAX_DOWNLOAD_BUFFER = 10;  // Raw downloaded chunks waiting for hash
+        const MAX_VERIFIED_BUFFER = 10;  // Verified chunks waiting for disk write
 
         const fileId = window.location.pathname.split('/').pop();
         let fileInfo = null;
@@ -231,17 +234,19 @@
             downloadBtn.textContent = 'Downloading...';
             progressContainer.classList.add('active');
             status.className = 'status downloading';
-            status.textContent = 'Downloading to disk...';
+            status.textContent = 'Starting pipeline...';
 
-            const chunkBuffer = new Map();
-            const chunkStatus = new Array(fileInfo.totalChunks).fill('pending');
-            let downloadedBytes = 0;
+            // Pipeline state
+            const downloadBuffer = new Map();  // chunkIndex -> ArrayBuffer (raw)
+            const verifiedBuffer = new Map();  // chunkIndex -> Uint8Array (hashed & verified)
+            // States: pending, downloading, downloaded, hashing, verified, done
+            const chunkState = new Array(fileInfo.totalChunks).fill('pending');
             let nextChunkToWrite = 0;
-            let flushInProgress = false;
+            let writtenBytes = 0;
+            let pipelineError = null;
 
-            // Track chunk completion times for speed calculation
+            // Speed tracking
             const chunkCompletions = [];
-
             const speedInterval = setInterval(() => {
                 const now = Date.now();
                 const recent = chunkCompletions.filter(t => t > now - 30000);
@@ -253,132 +258,202 @@
             }, 1000);
 
             function updateProgress() {
-                const doneCount = chunkStatus.filter(s => s === 'done').length;
+                const doneCount = chunkState.filter(s => s === 'done').length;
                 const progress = (doneCount / fileInfo.totalChunks * 100);
                 progressFill.style.width = progress.toFixed(1) + '%';
                 progressPercent.textContent = `${doneCount}/${fileInfo.totalChunks}`;
-                chunkInfo.textContent = `${formatBytes(downloadedBytes)} / ${formatBytes(fileInfo.size)}`;
+                chunkInfo.textContent = `${formatBytes(writtenBytes)} / ${formatBytes(fileInfo.size)} | DL:${downloadBuffer.size} VF:${verifiedBuffer.size}`;
             }
 
-            async function flushBufferToDisk() {
-                if (flushInProgress) return; // Prevent concurrent flushes
-                flushInProgress = true;
-                try {
-                    while (chunkBuffer.has(nextChunkToWrite)) {
-                        const chunkIndex = nextChunkToWrite;
-                        const data = chunkBuffer.get(chunkIndex);
-                        console.log(`Writing chunk ${chunkIndex} to disk (${data.byteLength} bytes, buffer size: ${chunkBuffer.size})`);
-                        await writable.write(data);
-                        console.log(`Chunk ${chunkIndex} written successfully`);
-                        chunkBuffer.delete(chunkIndex);
-                        nextChunkToWrite++;
+            // === DOWNLOAD WORKER ===
+            async function downloadWorker(workerId) {
+                while (!pipelineError) {
+                    // Check if all done
+                    if (chunkState.every(s => s === 'done')) break;
+
+                    // Wait if download buffer is full
+                    if (downloadBuffer.size >= MAX_DOWNLOAD_BUFFER) {
+                        await new Promise(r => setTimeout(r, 50));
+                        continue;
                     }
-                } catch (err) {
-                    console.error(`Failed to write chunk ${nextChunkToWrite}:`, err);
-                    throw err;
-                } finally {
-                    flushInProgress = false;
+
+                    // Refresh file info to get latest chunk hashes (for progressive download)
+                    try {
+                        const res = await fetch(`/api/info/${fileId}`);
+                        if (res.ok) fileInfo = await res.json();
+                    } catch (e) { /* ignore, use cached */ }
+
+                    // Find next pending chunk that's available (has hash from server)
+                    let chunkIndex = -1;
+                    for (let i = 0; i < fileInfo.totalChunks; i++) {
+                        if (chunkState[i] === 'pending' && fileInfo.chunkHashes[i]) {
+                            chunkIndex = i;
+                            chunkState[i] = 'downloading';
+                            break;
+                        }
+                    }
+
+                    if (chunkIndex === -1) {
+                        // No chunks available - either all in progress or waiting for upload
+                        await new Promise(r => setTimeout(r, 100));
+                        continue;
+                    }
+
+                    try {
+                        console.log(`[DL${workerId}] Downloading chunk ${chunkIndex}`);
+                        const data = await downloadChunk(chunkIndex);
+                        downloadBuffer.set(chunkIndex, data);
+                        chunkState[chunkIndex] = 'downloaded';
+                        console.log(`[DL${workerId}] Chunk ${chunkIndex} downloaded (${data.byteLength} bytes), buffer: ${downloadBuffer.size}`);
+                    } catch (err) {
+                        if (!err.message.includes('404')) {
+                            console.error(`[DL${workerId}] Chunk ${chunkIndex} error:`, err);
+                        }
+                        chunkState[chunkIndex] = 'pending'; // retry
+                    }
                 }
+                console.log(`[DL${workerId}] Worker exiting`);
             }
 
-            async function downloadAvailableChunk(index) {
-                if (chunkStatus[index] !== 'pending') return;
-                chunkStatus[index] = 'downloading';
+            // === HASH WORKER ===
+            async function hashWorker(workerId) {
+                while (!pipelineError) {
+                    // Check if all done
+                    if (chunkState.every(s => s === 'done')) break;
 
-                try {
-                    console.log(`Downloading chunk ${index}...`);
-                    let data = await downloadChunk(index);
-                    console.log(`Chunk ${index} downloaded (${data.byteLength} bytes), hashing...`);
-
-                    const hash = await hashData(data);
-                    if (hash !== fileInfo.chunkHashes[index]) {
-                        console.warn(`Chunk ${index} hash mismatch, will retry`);
-                        chunkStatus[index] = 'pending';
-                        data = null; // Help GC
-                        return;
-                    }
-                    console.log(`Chunk ${index} hash verified, adding to buffer`);
-
-                    // Wait if buffer is full before adding more
-                    if (chunkBuffer.size >= MAX_BUFFER_CHUNKS) {
-                        console.log(`Buffer full (${chunkBuffer.size}), next to write: ${nextChunkToWrite}, waiting...`);
-                        // Log which chunks are in buffer
-                        console.log(`Buffer contains chunks: ${Array.from(chunkBuffer.keys()).sort((a,b) => a-b).join(', ')}`);
-                    }
-                    while (chunkBuffer.size >= MAX_BUFFER_CHUNKS) {
-                        await new Promise(r => setTimeout(r, 200));
-                        // Try to flush in case something unblocked
-                        await flushBufferToDisk();
+                    // Wait if verified buffer is full
+                    if (verifiedBuffer.size >= MAX_VERIFIED_BUFFER) {
+                        await new Promise(r => setTimeout(r, 50));
+                        continue;
                     }
 
-                    // Copy data (not view) so original ArrayBuffer can be GC'd
-                    const chunk = new Uint8Array(data.byteLength);
-                    chunk.set(new Uint8Array(data));
-                    data = null;
+                    // Find a downloaded chunk to hash
+                    let chunkIndex = -1;
+                    for (let i = 0; i < fileInfo.totalChunks; i++) {
+                        if (chunkState[i] === 'downloaded') {
+                            chunkIndex = i;
+                            chunkState[i] = 'hashing';
+                            break;
+                        }
+                    }
 
-                    chunkBuffer.set(index, chunk);
-                    await flushBufferToDisk();
+                    if (chunkIndex === -1) {
+                        await new Promise(r => setTimeout(r, 50));
+                        continue;
+                    }
 
-                    downloadedBytes += chunk.byteLength;
-                    chunkCompletions.push(Date.now());
-                    chunkStatus[index] = 'done';
-                    updateProgress();
-                } catch (err) {
-                    console.error(`Chunk ${index} error:`, err);
-                    chunkStatus[index] = 'pending';
+                    try {
+                        const data = downloadBuffer.get(chunkIndex);
+                        downloadBuffer.delete(chunkIndex);
+
+                        console.log(`[HS${workerId}] Hashing chunk ${chunkIndex}`);
+                        const hash = await hashData(data);
+
+                        if (hash !== fileInfo.chunkHashes[chunkIndex]) {
+                            console.warn(`[HS${workerId}] Chunk ${chunkIndex} hash mismatch, re-downloading`);
+                            chunkState[chunkIndex] = 'pending';
+                            continue;
+                        }
+
+                        // Copy data so original ArrayBuffer can be GC'd
+                        const chunk = new Uint8Array(data.byteLength);
+                        chunk.set(new Uint8Array(data));
+
+                        verifiedBuffer.set(chunkIndex, chunk);
+                        chunkState[chunkIndex] = 'verified';
+                        console.log(`[HS${workerId}] Chunk ${chunkIndex} verified, verified buffer: ${verifiedBuffer.size}`);
+                    } catch (err) {
+                        console.error(`[HS${workerId}] Chunk ${chunkIndex} error:`, err);
+                        chunkState[chunkIndex] = 'pending';
+                    }
+                }
+                console.log(`[HS${workerId}] Worker exiting`);
+            }
+
+            // === DISK WRITER ===
+            async function diskWriter() {
+                while (!pipelineError && nextChunkToWrite < fileInfo.totalChunks) {
+                    if (verifiedBuffer.has(nextChunkToWrite)) {
+                        const data = verifiedBuffer.get(nextChunkToWrite);
+                        try {
+                            console.log(`[DISK] Writing chunk ${nextChunkToWrite} (${data.byteLength} bytes)`);
+                            await writable.write(data);
+                            verifiedBuffer.delete(nextChunkToWrite);
+                            writtenBytes += data.byteLength;
+                            chunkState[nextChunkToWrite] = 'done';
+                            chunkCompletions.push(Date.now());
+                            nextChunkToWrite++;
+                            updateProgress();
+                        } catch (err) {
+                            console.error(`[DISK] Write error:`, err);
+                            pipelineError = err;
+                            throw err;
+                        }
+                    } else {
+                        await new Promise(r => setTimeout(r, 20));
+                    }
+                }
+                console.log(`[DISK] Writer exiting, wrote ${nextChunkToWrite} chunks`);
+            }
+
+            // === STATUS UPDATER ===
+            async function statusUpdater() {
+                let lastBottleneckLog = 0;
+                while (!pipelineError && nextChunkToWrite < fileInfo.totalChunks) {
+                    const downloading = chunkState.filter(s => s === 'downloading').length;
+                    const downloaded = chunkState.filter(s => s === 'downloaded').length;
+                    const hashing = chunkState.filter(s => s === 'hashing').length;
+                    const verified = chunkState.filter(s => s === 'verified').length;
+                    const done = chunkState.filter(s => s === 'done').length;
+                    const pending = chunkState.filter(s => s === 'pending').length;
+
+                    if (pending > 0 && !fileInfo.complete) {
+                        status.textContent = `Pipeline: ${downloading} downloading, ${hashing} hashing, ${done}/${fileInfo.totalChunks} done (waiting for upload)`;
+                    } else {
+                        status.textContent = `Pipeline: ${downloading} downloading, ${hashing} hashing, ${done}/${fileInfo.totalChunks} done`;
+                    }
+
+                    // Log bottleneck analysis every 5 seconds
+                    const now = Date.now();
+                    if (now - lastBottleneckLog >= 5000) {
+                        lastBottleneckLog = now;
+                        const dlFull = downloadBuffer.size >= MAX_DOWNLOAD_BUFFER;
+                        const vfFull = verifiedBuffer.size >= MAX_VERIFIED_BUFFER;
+
+                        if (dlFull && vfFull) {
+                            console.log(`[BOTTLENECK] Both buffers full (DL:${downloadBuffer.size}, VF:${verifiedBuffer.size}) - DISK is the bottleneck, disk writes are slow`);
+                        } else if (dlFull) {
+                            console.log(`[BOTTLENECK] Download buffer full (DL:${downloadBuffer.size}, VF:${verifiedBuffer.size}) - HASH is the bottleneck, hashing can't keep up with downloads`);
+                        } else if (vfFull) {
+                            console.log(`[BOTTLENECK] Verified buffer full (DL:${downloadBuffer.size}, VF:${verifiedBuffer.size}) - DISK is the bottleneck, disk writes can't keep up with hashing`);
+                        } else {
+                            console.log(`[BOTTLENECK] No buffer full (DL:${downloadBuffer.size}, VF:${verifiedBuffer.size}) - NETWORK is the bottleneck (good! pipeline is keeping up)`);
+                        }
+                    }
+
+                    await new Promise(r => setTimeout(r, 500));
                 }
             }
 
             try {
-                while (chunkStatus.some(s => s !== 'done')) {
-                    let infoRetries = 0;
-                    while (true) {
-                        try {
-                            const res = await fetch(`/api/info/${fileId}`);
-                            if (!res.ok) throw new Error('Failed to get file info');
-                            fileInfo = await res.json();
-                            break;
-                        } catch (err) {
-                            infoRetries++;
-                            const waitTime = Math.min(infoRetries * 1000, 5000);
-                            status.textContent = `Connection lost - retrying in ${waitTime/1000}s...`;
-                            status.className = 'status error';
-                            await new Promise(r => setTimeout(r, waitTime));
-                            status.className = 'status downloading';
-                        }
-                    }
-
-                    // Don't download too far ahead of what we've written to disk
-                    const maxChunkToDownload = nextChunkToWrite + MAX_BUFFER_CHUNKS;
-
-                    const availableChunks = [];
-                    for (let i = 0; i < fileInfo.totalChunks && i < maxChunkToDownload; i++) {
-                        if (chunkStatus[i] === 'pending' && fileInfo.chunkHashes[i]) {
-                            availableChunks.push(i);
-                        }
-                    }
-
-                    if (availableChunks.length > 0) {
-                        const batch = availableChunks.slice(0, PARALLEL_DOWNLOADS);
-                        await Promise.all(batch.map(i => downloadAvailableChunk(i)));
-
-                        const waitingCount = chunkStatus.filter(s => s === 'pending').length;
-                        if (waitingCount > 0 && !fileInfo.complete) {
-                            status.textContent = `Downloading... (waiting for ${waitingCount} chunks to upload)`;
-                        }
-                    } else if (!fileInfo.complete) {
-                        const waitingCount = chunkStatus.filter(s => s === 'pending').length;
-                        status.textContent = `Waiting for sender to upload ${waitingCount} more chunks...`;
-                        await new Promise(r => setTimeout(r, 500));
-                    }
-                }
+                // Start all pipeline workers
+                console.log(`Starting pipeline: ${PARALLEL_DOWNLOADS} downloaders, ${PARALLEL_HASHES} hashers`);
+                await Promise.all([
+                    // Download workers
+                    ...Array(PARALLEL_DOWNLOADS).fill().map((_, i) => downloadWorker(i)),
+                    // Hash workers
+                    ...Array(PARALLEL_HASHES).fill().map((_, i) => hashWorker(i)),
+                    // Single disk writer (sequential writes are fastest)
+                    diskWriter(),
+                    // Status updater
+                    statusUpdater()
+                ]);
 
                 clearInterval(speedInterval);
-
                 await writable.close();
+
                 status.className = 'status complete';
                 status.textContent = 'Download complete! File saved to disk.';
-
                 progressFill.style.width = '100%';
                 progressPercent.textContent = '100%';
                 downloadBtn.disabled = false;
@@ -386,10 +461,11 @@
 
             } catch (err) {
                 clearInterval(speedInterval);
+                pipelineError = err;
                 if (writable) {
                     try { await writable.abort(); } catch(e) {}
                 }
-                console.error('Download error:', err);
+                console.error('Pipeline error:', err);
                 status.className = 'status error';
                 status.textContent = 'Error: ' + err.message;
                 downloadBtn.disabled = false;
