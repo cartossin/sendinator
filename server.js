@@ -13,6 +13,7 @@ const UPLOAD_DIR = path.join(__dirname, 'uploads');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const CHUNK_SIZE = 16 * 1024 * 1024;        // 16MB chunks (can change for new uploads)
 const TARGET_BUFFER_MEMORY = 100 * 1024 * 1024; // 100MB target buffer memory for clients
+const USE_NGINX_ACCEL = process.env.USE_NGINX_ACCEL === 'true'; // Use nginx X-Accel-Redirect for downloads
 
 // MIME types for static files
 const MIME_TYPES = {
@@ -254,16 +255,34 @@ const server = http.createServer(async (req, res) => {
             }
 
             const chunkPath = path.join(UPLOAD_DIR, id, `chunk_${chunkIndex}`);
-            try {
-                const stat = await fs.promises.stat(chunkPath);
-                res.writeHead(200, {
-                    'Content-Length': stat.size,
-                    'Content-Type': 'application/octet-stream',
-                    'X-Chunk-Hash': fileInfo.chunkHashes[chunkIndex]
-                });
-                fs.createReadStream(chunkPath).pipe(res);
-            } catch (err) {
-                return sendJson(res, 404, { error: 'Chunk file missing' });
+
+            if (USE_NGINX_ACCEL) {
+                // Let nginx serve the file directly (near-zero CPU)
+                try {
+                    const stat = await fs.promises.stat(chunkPath);
+                    res.writeHead(200, {
+                        'X-Accel-Redirect': `/internal-chunks/${id}/chunk_${chunkIndex}`,
+                        'Content-Type': 'application/octet-stream',
+                        'Content-Length': stat.size,
+                        'X-Chunk-Hash': fileInfo.chunkHashes[chunkIndex]
+                    });
+                    res.end();
+                } catch (err) {
+                    return sendJson(res, 404, { error: 'Chunk file missing' });
+                }
+            } else {
+                // Stream directly from Node.js (fallback)
+                try {
+                    const stat = await fs.promises.stat(chunkPath);
+                    res.writeHead(200, {
+                        'Content-Length': stat.size,
+                        'Content-Type': 'application/octet-stream',
+                        'X-Chunk-Hash': fileInfo.chunkHashes[chunkIndex]
+                    });
+                    fs.createReadStream(chunkPath).pipe(res);
+                } catch (err) {
+                    return sendJson(res, 404, { error: 'Chunk file missing' });
+                }
             }
             return;
         }
@@ -320,4 +339,9 @@ loadFilesFromDisk();
 server.listen(PORT, () => {
     console.log(`Sendinator running on http://localhost:${PORT}`);
     console.log(`Chunk size: ${formatBytes(CHUNK_SIZE)}`);
+    if (USE_NGINX_ACCEL) {
+        console.log(`nginx X-Accel-Redirect: ENABLED (low CPU mode)`);
+    } else {
+        console.log(`nginx X-Accel-Redirect: disabled (set USE_NGINX_ACCEL=true to enable)`);
+    }
 });

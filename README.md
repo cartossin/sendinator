@@ -48,6 +48,8 @@ pm2 restart sendinator
 
 ## Reverse Proxy (nginx)
 
+### Basic Setup
+
 ```nginx
 server {
     listen 443 ssl;
@@ -56,7 +58,7 @@ server {
     ssl_certificate /path/to/cert.pem;
     ssl_certificate_key /path/to/key.pem;
 
-    client_max_body_size 10M;
+    client_max_body_size 20M;
 
     location / {
         proxy_pass http://127.0.0.1:3000;
@@ -67,34 +69,35 @@ server {
 }
 ```
 
+### Low-CPU Mode (X-Accel-Redirect)
+
+For high-performance deployments, enable nginx to serve chunk files directly. This reduces Node.js CPU usage by 10-20x.
+
+**Setup:**
+```bash
+# Run the setup script (or see output for remote nginx)
+sudo ./setup-nginx.sh
+
+# Add the include to your nginx server block:
+# include /etc/nginx/sites-available/sendinator-accel.conf;
+
+# Reload nginx
+sudo nginx -s reload
+
+# Start sendinator with X-Accel-Redirect enabled
+USE_NGINX_ACCEL=true pm2 restart sendinator
+```
+
+**How it works:**
+- Node.js handles auth and tracking only (near-zero CPU)
+- nginx serves chunk files directly using kernel-level `sendfile()`
+- Requires nginx to have read access to the uploads folder
+
 ## Storage
 
 Uploaded chunks are stored in `./uploads/`. Files are automatically cleaned up after 24 hours.
 
 ## TODO: Future Optimizations
-
-These optimizations could dramatically improve performance but add deployment complexity.
-
-### Download Speed: X-Accel-Redirect (nginx serves files)
-
-Currently Node.js streams every byte, which uses CPU. With X-Accel-Redirect:
-- Node.js handles auth/tracking only (~0 CPU)
-- nginx serves files directly from disk (kernel-level efficient)
-- Potential 10-20x CPU reduction
-
-Would require nginx config:
-```nginx
-location /internal-chunks/ {
-    internal;
-    alias /path/to/sendinator/uploads/;
-}
-```
-
-Node.js returns header instead of file bytes:
-```javascript
-res.setHeader('X-Accel-Redirect', `/internal-chunks/${id}/chunk_${index}`);
-res.end();
-```
 
 ### Upload Speed: Pipeline Architecture
 
