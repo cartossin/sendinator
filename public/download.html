@@ -149,7 +149,7 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v2.2.0</div>
+    <div class="version">v2.2.1</div>
 
     <script>
         // Pipeline configuration
@@ -279,12 +279,6 @@
                     // Check if all done
                     if (chunkState.every(s => s === 'done')) break;
 
-                    // Wait if download buffer is full
-                    if (downloadBuffer.size >= MAX_DOWNLOAD_BUFFER) {
-                        await new Promise(r => setTimeout(r, 50));
-                        continue;
-                    }
-
                     // Refresh file info to get latest chunk hashes (for progressive download)
                     try {
                         const res = await fetch(`/api/info/${fileId}`);
@@ -309,6 +303,13 @@
 
                     try {
                         const data = await downloadChunk(chunkIndex);
+
+                        // Wait for buffer space AFTER download (prevents overflow)
+                        while (downloadBuffer.size >= MAX_DOWNLOAD_BUFFER && !pipelineError) {
+                            await new Promise(r => setTimeout(r, 50));
+                        }
+                        if (pipelineError) break;
+
                         downloadBuffer.set(chunkIndex, data);
                         chunkState[chunkIndex] = 'downloaded';
                     } catch (err) {
