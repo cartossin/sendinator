@@ -149,7 +149,7 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v1.1.0</div>
+    <div class="version">v1.2.0</div>
 
     <script src="/spark-md5.min.js"></script>
     <script>
@@ -277,7 +277,9 @@
                     const data = await downloadChunk(index);
                     const hash = await hashData(data);
                     if (hash !== fileInfo.chunkHashes[index]) {
-                        throw new Error(`Chunk ${index} hash mismatch`);
+                        console.log(`Chunk ${index} hash mismatch, will retry`);
+                        chunkStatus[index] = 'pending';
+                        return;
                     }
 
                     chunkBuffer.set(index, new Uint8Array(data));
@@ -288,11 +290,9 @@
                     chunkStatus[index] = 'done';
                     updateProgress();
                 } catch (err) {
-                    if (err.message.includes('404') || err.message.includes('not yet')) {
-                        chunkStatus[index] = 'pending';
-                    } else {
-                        throw err;
-                    }
+                    // Network error or chunk not ready - will retry
+                    console.log(`Chunk ${index} error: ${err.message}, will retry`);
+                    chunkStatus[index] = 'pending';
                 }
             }
 
