@@ -149,14 +149,13 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v2.1.2</div>
+    <div class="version">v2.2.0</div>
 
     <script>
         // Pipeline configuration
         const PARALLEL_DOWNLOADS = 6;
         const PARALLEL_HASHES = 3;
-        const MAX_DOWNLOAD_BUFFER = 10;  // Raw downloaded chunks waiting for hash
-        const MAX_VERIFIED_BUFFER = 10;  // Verified chunks waiting for disk write
+        // Buffer sizes calculated dynamically from server config
 
         const fileId = window.location.pathname.split('/').pop();
         let fileInfo = null;
@@ -235,6 +234,15 @@
             progressContainer.classList.add('active');
             status.className = 'status downloading';
             status.textContent = 'Starting pipeline...';
+
+            // Calculate buffer sizes from server config
+            // Split target memory between download buffer and verified buffer
+            const targetMemory = fileInfo.targetBufferMemory || (100 * 1024 * 1024);  // Default 100MB
+            const chunkSize = fileInfo.chunkSize;
+            const halfMemory = Math.floor(targetMemory / 2);
+            const MAX_DOWNLOAD_BUFFER = Math.max(2, Math.floor(halfMemory / chunkSize));
+            const MAX_VERIFIED_BUFFER = Math.max(2, Math.floor(halfMemory / chunkSize));
+            console.log(`Buffer config: ${formatBytes(chunkSize)} chunks, ${MAX_DOWNLOAD_BUFFER} download + ${MAX_VERIFIED_BUFFER} verified = ~${formatBytes(targetMemory)} target`);
 
             // Pipeline state
             const downloadBuffer = new Map();  // chunkIndex -> ArrayBuffer (raw)
@@ -407,13 +415,13 @@
                         const vfFull = verifiedBuffer.size >= MAX_VERIFIED_BUFFER;
 
                         if (dlFull && vfFull) {
-                            console.log(`[BOTTLENECK] Both buffers full (DL:${downloadBuffer.size}, VF:${verifiedBuffer.size}) - DISK is the bottleneck, disk writes are slow`);
+                            console.log(`[BOTTLENECK] Both buffers full (DL:${downloadBuffer.size}/${MAX_DOWNLOAD_BUFFER}, VF:${verifiedBuffer.size}/${MAX_VERIFIED_BUFFER}) - DISK is the bottleneck`);
                         } else if (dlFull) {
-                            console.log(`[BOTTLENECK] Download buffer full (DL:${downloadBuffer.size}, VF:${verifiedBuffer.size}) - HASH is the bottleneck, hashing can't keep up with downloads`);
+                            console.log(`[BOTTLENECK] Download buffer full (DL:${downloadBuffer.size}/${MAX_DOWNLOAD_BUFFER}, VF:${verifiedBuffer.size}/${MAX_VERIFIED_BUFFER}) - HASH is the bottleneck`);
                         } else if (vfFull) {
-                            console.log(`[BOTTLENECK] Verified buffer full (DL:${downloadBuffer.size}, VF:${verifiedBuffer.size}) - DISK is the bottleneck, disk writes can't keep up with hashing`);
+                            console.log(`[BOTTLENECK] Verified buffer full (DL:${downloadBuffer.size}/${MAX_DOWNLOAD_BUFFER}, VF:${verifiedBuffer.size}/${MAX_VERIFIED_BUFFER}) - DISK is the bottleneck`);
                         } else {
-                            console.log(`[BOTTLENECK] No buffer full (DL:${downloadBuffer.size}, VF:${verifiedBuffer.size}) - NETWORK is the bottleneck (good! pipeline is keeping up)`);
+                            console.log(`[BOTTLENECK] Buffers OK (DL:${downloadBuffer.size}/${MAX_DOWNLOAD_BUFFER}, VF:${verifiedBuffer.size}/${MAX_VERIFIED_BUFFER}) - NETWORK limited (good!)`);
                         }
                     }
 

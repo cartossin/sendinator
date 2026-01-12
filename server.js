@@ -8,9 +8,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+// === CONFIGURATION ===
 const PORT = process.env.PORT || 3000;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
-const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB chunks
+const CHUNK_SIZE = 4 * 1024 * 1024;         // 4MB chunks (can change for new uploads)
+const TARGET_BUFFER_MEMORY = 100 * 1024 * 1024; // 100MB target buffer memory for clients
 
 // Ensure upload directory exists
 if (!fs.existsSync(UPLOAD_DIR)) {
@@ -52,6 +55,14 @@ function saveMetadata(id, fileInfo) {
 app.use(express.static('public'));
 app.use(express.json());
 
+// Get server configuration (for clients to fetch chunk size, buffer targets)
+app.get('/api/config', (req, res) => {
+    res.json({
+        chunkSize: CHUNK_SIZE,
+        targetBufferMemory: TARGET_BUFFER_MEMORY
+    });
+});
+
 // Create a new file - just reserve ID, hashes come with chunks
 app.post('/api/create', (req, res) => {
     const { filename, size, totalChunks } = req.body;
@@ -69,6 +80,7 @@ app.post('/api/create', (req, res) => {
         filename,
         size,
         totalChunks,
+        chunkSize: CHUNK_SIZE,  // Store chunk size with file for backwards compatibility
         chunkHashes: new Array(totalChunks).fill(null),
         chunksReceived: new Set(),
         createdAt: Date.now()
@@ -159,7 +171,8 @@ app.get('/api/info/:id', (req, res) => {
         chunkHashes: fileInfo.chunkHashes,
         chunksReceived: fileInfo.chunksReceived.size,
         complete: fileInfo.chunksReceived.size === fileInfo.totalChunks,
-        chunkSize: CHUNK_SIZE
+        chunkSize: fileInfo.chunkSize || CHUNK_SIZE,  // Use file's chunk size, fallback for old files
+        targetBufferMemory: TARGET_BUFFER_MEMORY
     });
 });
 

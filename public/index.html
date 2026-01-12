@@ -181,11 +181,11 @@
         <button class="new-upload-btn" id="newUploadBtn">Upload another file</button>
     </div>
 
-    <div class="version">v2.0.0</div>
+    <div class="version">v2.2.0</div>
 
     <script>
-        const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB - must match server
         const PARALLEL_UPLOADS = 4;
+        let serverConfig = null;  // Fetched from server
 
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('fileInput');
@@ -234,7 +234,25 @@
             fileInput.value = '';
         });
 
+        // Fetch server configuration on page load
+        async function loadConfig() {
+            try {
+                const res = await fetch('/api/config');
+                serverConfig = await res.json();
+                console.log('Server config:', serverConfig);
+            } catch (err) {
+                console.error('Failed to load config, using defaults');
+                serverConfig = { chunkSize: 4 * 1024 * 1024 };
+            }
+        }
+        loadConfig();
+
         async function handleFile(file) {
+            if (!serverConfig) {
+                await loadConfig();
+            }
+            const CHUNK_SIZE = serverConfig.chunkSize;
+
             dropzone.style.display = 'none';
             uploadContainer.classList.add('active');
             fileName.textContent = file.name;
@@ -266,7 +284,7 @@
 
                 // Step 2: Hash and upload chunks simultaneously
                 status.textContent = 'Uploading...';
-                await hashAndUploadChunks(file, id, totalChunks);
+                await hashAndUploadChunks(file, id, totalChunks, CHUNK_SIZE);
 
                 status.className = 'status complete';
                 status.textContent = 'Upload complete! Share the link.';
@@ -287,7 +305,7 @@
             return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         }
 
-        async function hashAndUploadChunks(file, id, totalChunks) {
+        async function hashAndUploadChunks(file, id, totalChunks, chunkSize) {
             let completedChunks = 0;
             let uploadedBytes = 0;
             const pending = [];
@@ -301,13 +319,13 @@
                 const recent = chunkCompletions.filter(t => t > now - 30000);
                 if (recent.length > 0) {
                     const windowSeconds = Math.min(30, (now - chunkCompletions[0]) / 1000);
-                    const speed = recent.length * CHUNK_SIZE / windowSeconds;
+                    const speed = recent.length * chunkSize / windowSeconds;
                     progressSpeed.textContent = formatBytes(speed) + '/s';
                 }
             }, 1000);
 
             for (let i = 0; i < totalChunks; i++) {
-                const promise = hashAndUploadChunk(file, id, i)
+                const promise = hashAndUploadChunk(file, id, i, chunkSize)
                     .then((result) => {
                         completedChunks++;
                         uploadedBytes += result.size;
@@ -335,9 +353,9 @@
             clearInterval(speedInterval);
         }
 
-        async function hashAndUploadChunk(file, id, index) {
-            const start = index * CHUNK_SIZE;
-            const end = Math.min(start + CHUNK_SIZE, file.size);
+        async function hashAndUploadChunk(file, id, index, chunkSize) {
+            const start = index * chunkSize;
+            const end = Math.min(start + chunkSize, file.size);
             const chunk = file.slice(start, end);
 
             // Hash the chunk
