@@ -325,7 +325,9 @@
 
                     if (chunkIndex === -1) {
                         // No chunks available - either all in progress or waiting for upload
-                        await new Promise(r => setTimeout(r, 100));
+                        // Use shorter wait near end of download
+                        const remaining = fileInfo.totalChunks - nextChunkToWrite;
+                        await new Promise(r => setTimeout(r, remaining < 20 ? 10 : 100));
                         continue;
                     }
 
@@ -398,7 +400,8 @@
                     } else {
                         // Wait if verified buffer is full (non-critical chunks can wait)
                         if (verifiedBuffer.size >= MAX_VERIFIED_BUFFER) {
-                            await new Promise(r => setTimeout(r, 50));
+                            const remaining = fileInfo.totalChunks - nextChunkToWrite;
+                            await new Promise(r => setTimeout(r, remaining < 20 ? 5 : 50));
                             continue;
                         }
 
@@ -413,7 +416,9 @@
                     }
 
                     if (chunkIndex === -1) {
-                        await new Promise(r => setTimeout(r, 50));
+                        // Shorter wait near end of download
+                        const remaining = fileInfo.totalChunks - nextChunkToWrite;
+                        await new Promise(r => setTimeout(r, remaining < 20 ? 5 : 50));
                         continue;
                     }
 
@@ -459,7 +464,9 @@
                             throw err;
                         }
                     } else {
-                        await new Promise(r => setTimeout(r, 20));
+                        // Faster polling near end of download
+                        const remaining = fileInfo.totalChunks - nextChunkToWrite;
+                        await new Promise(r => setTimeout(r, remaining < 20 ? 5 : 20));
                     }
                 }
             }
@@ -533,7 +540,11 @@
                     const done = chunkState.filter(s => s === 'done').length;
                     const pending = chunkState.filter(s => s === 'pending').length;
 
-                    if (pending > 0 && !fileInfo.complete) {
+                    const remaining = fileInfo.totalChunks - nextChunkToWrite;
+                    if (remaining <= 10 && remaining > 0) {
+                        status.textContent = `Finalizing... ${remaining} chunks remaining`;
+                        status.className = 'status verifying';
+                    } else if (pending > 0 && !fileInfo.complete) {
                         status.textContent = `${downloading} downloading | ${nextChunkToWrite}/${fileInfo.totalChunks} written (waiting for upload)`;
                     } else {
                         status.textContent = `${downloading} downloading | ${nextChunkToWrite}/${fileInfo.totalChunks} written`;
