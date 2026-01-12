@@ -177,7 +177,7 @@ app.get('/api/info/:id', (req, res) => {
 });
 
 // Download a chunk
-app.get('/api/chunk/:id/:index', (req, res) => {
+app.get('/api/chunk/:id/:index', async (req, res) => {
     const { id, index } = req.params;
     const chunkIndex = parseInt(index, 10);
 
@@ -191,16 +191,15 @@ app.get('/api/chunk/:id/:index', (req, res) => {
     }
 
     const chunkPath = path.join(UPLOAD_DIR, id, `chunk_${chunkIndex}`);
-    if (!fs.existsSync(chunkPath)) {
+    try {
+        const stat = await fs.promises.stat(chunkPath);
+        res.setHeader('Content-Length', stat.size);
+        res.setHeader('Content-Type', 'application/octet-stream');
+        res.setHeader('X-Chunk-Hash', fileInfo.chunkHashes[chunkIndex]);
+        fs.createReadStream(chunkPath).pipe(res);
+    } catch (err) {
         return res.status(404).json({ error: 'Chunk file missing' });
     }
-
-    const stat = fs.statSync(chunkPath);
-    res.setHeader('Content-Length', stat.size);
-    res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('X-Chunk-Hash', fileInfo.chunkHashes[chunkIndex]);
-
-    fs.createReadStream(chunkPath).pipe(res);
 });
 
 // Download page
