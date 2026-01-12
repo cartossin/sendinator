@@ -205,36 +205,36 @@
         downloadBtn.addEventListener('click', startDownload);
 
         async function startDownload() {
-            // Try to use File System Access API for streaming to disk
-            let fileHandle = null;
-            let writable = null;
-
-            if (window.showSaveFilePicker) {
-                try {
-                    fileHandle = await window.showSaveFilePicker({
-                        suggestedName: fileInfo.filename,
-                        types: [{
-                            description: 'File',
-                            accept: { 'application/octet-stream': [] }
-                        }]
-                    });
-                    writable = await fileHandle.createWritable();
-                } catch (err) {
-                    if (err.name === 'AbortError') return; // User cancelled
-                    console.log('File System API failed, falling back to memory mode');
-                }
+            if (!window.showSaveFilePicker) {
+                status.className = 'status error';
+                status.textContent = 'Unsupported browser. Please use Chrome or Edge.';
+                return;
             }
 
-            const streamMode = writable !== null;
+            let fileHandle, writable;
+            try {
+                fileHandle = await window.showSaveFilePicker({
+                    suggestedName: fileInfo.filename,
+                    types: [{
+                        description: 'File',
+                        accept: { 'application/octet-stream': [] }
+                    }]
+                });
+                writable = await fileHandle.createWritable();
+            } catch (err) {
+                if (err.name === 'AbortError') return; // User cancelled
+                status.className = 'status error';
+                status.textContent = 'Failed to open file for writing: ' + err.message;
+                return;
+            }
 
             downloadBtn.disabled = true;
             downloadBtn.textContent = 'Downloading...';
             progressContainer.classList.add('active');
             status.className = 'status downloading';
-            status.textContent = streamMode ? 'Downloading to disk...' : 'Downloading...';
+            status.textContent = 'Downloading to disk...';
 
-            const chunkBuffer = new Map(); // For stream mode: holds chunks waiting to be written
-            const chunks = streamMode ? null : new Array(fileInfo.totalChunks); // For memory mode
+            const chunkBuffer = new Map();
             const chunkStatus = new Array(fileInfo.totalChunks).fill('pending');
             let downloadedBytes = 0;
             let nextChunkToWrite = 0;
@@ -280,12 +280,8 @@
                         throw new Error(`Chunk ${index} hash mismatch`);
                     }
 
-                    if (streamMode) {
-                        chunkBuffer.set(index, new Uint8Array(data));
-                        await flushBufferToDisk();
-                    } else {
-                        chunks[index] = data;
-                    }
+                    chunkBuffer.set(index, new Uint8Array(data));
+                    await flushBufferToDisk();
 
                     downloadedBytes += data.byteLength;
                     chunkCompletions.push(Date.now());
@@ -343,33 +339,9 @@
 
                 clearInterval(speedInterval);
 
-                if (streamMode) {
-                    await writable.close();
-                    status.className = 'status complete';
-                    status.textContent = 'Download complete! File saved to disk.';
-                } else {
-                    status.className = 'status verifying';
-                    status.textContent = 'Assembling file...';
-
-                    const uint8Arrays = chunks.map(ab => new Uint8Array(ab));
-                    const blob = new Blob(uint8Arrays, { type: 'application/octet-stream' });
-
-                    status.className = 'status complete';
-                    status.textContent = 'Download complete! All chunks verified.';
-
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = fileInfo.filename;
-                    a.style.display = 'none';
-                    document.body.appendChild(a);
-                    a.click();
-
-                    setTimeout(() => {
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                    }, 1000);
-                }
+                await writable.close();
+                status.className = 'status complete';
+                status.textContent = 'Download complete! File saved to disk.';
 
                 progressFill.style.width = '100%';
                 progressPercent.textContent = '100%';

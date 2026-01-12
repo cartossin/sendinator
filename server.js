@@ -17,8 +17,37 @@ if (!fs.existsSync(UPLOAD_DIR)) {
     fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
-// In-memory store for file metadata
+// In-memory store for file metadata (loaded from disk on startup)
 const files = new Map();
+
+// Load existing files from disk on startup
+function loadFilesFromDisk() {
+    const dirs = fs.readdirSync(UPLOAD_DIR);
+    for (const id of dirs) {
+        const metaPath = path.join(UPLOAD_DIR, id, 'meta.json');
+        if (fs.existsSync(metaPath)) {
+            try {
+                const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+                meta.chunksReceived = new Set(meta.chunksReceived);
+                files.set(id, meta);
+                console.log(`Loaded: ${id} - ${meta.filename}`);
+            } catch (err) {
+                console.error(`Failed to load ${id}:`, err.message);
+            }
+        }
+    }
+    console.log(`Loaded ${files.size} files from disk`);
+}
+
+// Save file metadata to disk
+function saveMetadata(id, fileInfo) {
+    const metaPath = path.join(UPLOAD_DIR, id, 'meta.json');
+    const toSave = {
+        ...fileInfo,
+        chunksReceived: Array.from(fileInfo.chunksReceived)
+    };
+    fs.writeFileSync(metaPath, JSON.stringify(toSave));
+}
 
 app.use(express.static('public'));
 app.use(express.json());
@@ -35,15 +64,18 @@ app.post('/api/create', (req, res) => {
     const fileDir = path.join(UPLOAD_DIR, id);
     fs.mkdirSync(fileDir, { recursive: true });
 
-    files.set(id, {
+    const fileInfo = {
         id,
         filename,
         size,
         totalChunks,
-        chunkHashes: new Array(totalChunks).fill(null), // Filled as chunks arrive
+        chunkHashes: new Array(totalChunks).fill(null),
         chunksReceived: new Set(),
         createdAt: Date.now()
-    });
+    };
+
+    files.set(id, fileInfo);
+    saveMetadata(id, fileInfo);
 
     console.log(`Created file: ${id} - ${filename} (${formatBytes(size)}, ${totalChunks} chunks)`);
     res.json({ id, url: `/download/${id}` });
@@ -90,6 +122,9 @@ app.post('/api/chunk/:id/:index', (req, res) => {
         fs.writeFileSync(chunkPath, data);
         fileInfo.chunkHashes[chunkIndex] = computedHash;
         fileInfo.chunksReceived.add(chunkIndex);
+
+        // Persist metadata to disk
+        saveMetadata(id, fileInfo);
 
         const progress = (fileInfo.chunksReceived.size / fileInfo.totalChunks * 100).toFixed(1);
         console.log(`Chunk ${chunkIndex}/${fileInfo.totalChunks - 1} received for ${id} (${progress}%)`);
@@ -184,6 +219,9 @@ setInterval(() => {
         }
     }
 }, 60 * 60 * 1000);
+
+// Load existing files and start server
+loadFilesFromDisk();
 
 app.listen(PORT, () => {
     console.log(`Sendinator running on http://localhost:${PORT}`);
