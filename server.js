@@ -97,7 +97,7 @@ app.post('/api/chunk/:id/:index', (req, res) => {
     }
 
     const chunks = [];
-    const hash = crypto.createHash('md5');
+    const hash = crypto.createHash('sha256');
 
     req.on('data', (chunk) => {
         chunks.push(chunk);

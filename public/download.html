@@ -149,9 +149,8 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v1.8.0</div>
+    <div class="version">v2.0.0</div>
 
-    <script src="/spark-md5.min.js"></script>
     <script>
         const PARALLEL_DOWNLOADS = 3;
         const MAX_BUFFER_CHUNKS = 20; // Don't download too far ahead
@@ -425,12 +424,10 @@
             }
         }
 
-        function hashData(arrayBuffer) {
-            return new Promise((resolve) => {
-                const spark = new SparkMD5.ArrayBuffer();
-                spark.append(arrayBuffer);
-                resolve(spark.end());
-            });
+        async function hashData(arrayBuffer) {
+            const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         }
 
         function formatBytes(bytes) {
