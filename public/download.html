@@ -149,7 +149,7 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v2.1.1</div>
+    <div class="version">v2.1.2</div>
 
     <script>
         // Pipeline configuration
@@ -300,19 +300,13 @@
                     }
 
                     try {
-                        console.log(`[DL${workerId}] Downloading chunk ${chunkIndex}`);
                         const data = await downloadChunk(chunkIndex);
                         downloadBuffer.set(chunkIndex, data);
                         chunkState[chunkIndex] = 'downloaded';
-                        console.log(`[DL${workerId}] Chunk ${chunkIndex} downloaded (${data.byteLength} bytes), buffer: ${downloadBuffer.size}`);
                     } catch (err) {
-                        if (!err.message.includes('404')) {
-                            console.error(`[DL${workerId}] Chunk ${chunkIndex} error:`, err);
-                        }
                         chunkState[chunkIndex] = 'pending'; // retry
                     }
                 }
-                console.log(`[DL${workerId}] Worker exiting`);
             }
 
             // === HASH WORKER ===
@@ -346,12 +340,10 @@
                         const data = downloadBuffer.get(chunkIndex);
                         downloadBuffer.delete(chunkIndex);
 
-                        console.log(`[HS${workerId}] Hashing chunk ${chunkIndex}`);
                         const hash = await hashData(data);
 
                         if (hash !== fileInfo.chunkHashes[chunkIndex]) {
-                            console.warn(`[HS${workerId}] Chunk ${chunkIndex} hash mismatch, re-downloading`);
-                            chunkState[chunkIndex] = 'pending';
+                            chunkState[chunkIndex] = 'pending'; // re-download
                             continue;
                         }
 
@@ -361,13 +353,10 @@
 
                         verifiedBuffer.set(chunkIndex, chunk);
                         chunkState[chunkIndex] = 'verified';
-                        console.log(`[HS${workerId}] Chunk ${chunkIndex} verified, verified buffer: ${verifiedBuffer.size}`);
                     } catch (err) {
-                        console.error(`[HS${workerId}] Chunk ${chunkIndex} error:`, err);
                         chunkState[chunkIndex] = 'pending';
                     }
                 }
-                console.log(`[HS${workerId}] Worker exiting`);
             }
 
             // === DISK WRITER ===
@@ -376,7 +365,6 @@
                     if (verifiedBuffer.has(nextChunkToWrite)) {
                         const data = verifiedBuffer.get(nextChunkToWrite);
                         try {
-                            console.log(`[DISK] Writing chunk ${nextChunkToWrite} (${data.byteLength} bytes)`);
                             await writable.write(data);
                             verifiedBuffer.delete(nextChunkToWrite);
                             writtenBytes += data.byteLength;
@@ -385,7 +373,6 @@
                             nextChunkToWrite++;
                             updateProgress();
                         } catch (err) {
-                            console.error(`[DISK] Write error:`, err);
                             pipelineError = err;
                             throw err;
                         }
@@ -393,7 +380,6 @@
                         await new Promise(r => setTimeout(r, 20));
                     }
                 }
-                console.log(`[DISK] Writer exiting, wrote ${nextChunkToWrite} chunks`);
             }
 
             // === STATUS UPDATER ===
@@ -408,9 +394,9 @@
                     const pending = chunkState.filter(s => s === 'pending').length;
 
                     if (pending > 0 && !fileInfo.complete) {
-                        status.textContent = `Pipeline: ${downloading} downloading, ${hashing} hashing, ${done}/${fileInfo.totalChunks} done (waiting for upload)`;
+                        status.textContent = `Buffer stats: ${downloading} downloading, ${hashing} hashing | Written: ${nextChunkToWrite}/${fileInfo.totalChunks} (waiting for upload)`;
                     } else {
-                        status.textContent = `Pipeline: ${downloading} downloading, ${hashing} hashing, ${done}/${fileInfo.totalChunks} done`;
+                        status.textContent = `Buffer stats: ${downloading} downloading, ${hashing} hashing | Written: ${nextChunkToWrite}/${fileInfo.totalChunks}`;
                     }
 
                     // Log bottleneck analysis every 5 seconds
@@ -437,7 +423,6 @@
 
             try {
                 // Start all pipeline workers
-                console.log(`Starting pipeline: ${PARALLEL_DOWNLOADS} downloaders, ${PARALLEL_HASHES} hashers`);
                 await Promise.all([
                     // Download workers
                     ...Array(PARALLEL_DOWNLOADS).fill().map((_, i) => downloadWorker(i)),
@@ -465,7 +450,6 @@
                 if (writable) {
                     try { await writable.abort(); } catch(e) {}
                 }
-                console.error('Pipeline error:', err);
                 status.className = 'status error';
                 status.textContent = 'Error: ' + err.message;
                 downloadBtn.disabled = false;
@@ -485,16 +469,11 @@
                     if (!res.ok) {
                         throw new Error(`Chunk ${index} failed: ${res.status}`);
                     }
-                    const contentLength = res.headers.get('content-length');
-                    console.log(`Chunk ${index} response received, content-length: ${contentLength}, reading arrayBuffer...`);
-                    const buffer = await res.arrayBuffer();
-                    console.log(`Chunk ${index} arrayBuffer read: ${buffer.byteLength} bytes`);
-                    return buffer;
+                    return await res.arrayBuffer();
                 } catch (err) {
                     if (err.message.includes('404')) throw err;
                     attempt++;
                     const waitTime = Math.min(attempt * 1000, 5000);
-                    console.warn(`Download retry ${attempt} for chunk ${index}: ${err.message}`);
                     await new Promise(r => setTimeout(r, waitTime));
                 }
             }
