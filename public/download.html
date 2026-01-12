@@ -214,11 +214,7 @@
             let fileHandle, writable;
             try {
                 fileHandle = await window.showSaveFilePicker({
-                    suggestedName: fileInfo.filename,
-                    types: [{
-                        description: 'File',
-                        accept: { 'application/octet-stream': [] }
-                    }]
+                    suggestedName: fileInfo.filename
                 });
                 writable = await fileHandle.createWritable();
             } catch (err) {
