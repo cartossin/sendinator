@@ -258,6 +258,7 @@
             let nextChunkToWrite = 0;
             let writtenBytes = 0;
             let pipelineError = null;
+            let lastProgressTime = Date.now();  // For watchdog
 
             // Speed tracking
             const chunkCompletions = [];
@@ -423,6 +424,7 @@
                             writtenBytes += data.byteLength;
                             chunkState[nextChunkToWrite] = 'done';
                             chunkCompletions.push(Date.now());
+                            lastProgressTime = Date.now();  // Update watchdog
                             nextChunkToWrite++;
                             updateProgress();
                         } catch (err) {
@@ -431,6 +433,65 @@
                         }
                     } else {
                         await new Promise(r => setTimeout(r, 20));
+                    }
+                }
+            }
+
+            // === WATCHDOG - detects stalls and forces recovery ===
+            async function watchdog() {
+                const STALL_TIMEOUT = 15000;  // 15 seconds without progress = stalled
+
+                while (!pipelineError && nextChunkToWrite < fileInfo.totalChunks) {
+                    await new Promise(r => setTimeout(r, 5000));  // Check every 5s
+
+                    if (pipelineError || chunkState.every(s => s === 'done')) break;
+
+                    const timeSinceProgress = Date.now() - lastProgressTime;
+
+                    if (timeSinceProgress > STALL_TIMEOUT) {
+                        console.warn(`[WATCHDOG] Stall detected! No progress for ${Math.round(timeSinceProgress/1000)}s. Forcing recovery...`);
+                        status.className = 'status error';
+                        status.textContent = 'Stall detected - recovering...';
+
+                        // Log current state
+                        console.log(`[WATCHDOG] nextChunkToWrite=${nextChunkToWrite}, downloadBuffer=${downloadBuffer.size}, verifiedBuffer=${verifiedBuffer.size}`);
+                        console.log(`[WATCHDOG] Chunk ${nextChunkToWrite} state: ${chunkState[nextChunkToWrite]}`);
+
+                        // Clear buffers of chunks that are too far ahead (can't use them yet)
+                        const maxAhead = MAX_DOWNLOAD_BUFFER + MAX_VERIFIED_BUFFER + 10;
+                        for (const idx of downloadBuffer.keys()) {
+                            if (idx > nextChunkToWrite + maxAhead) {
+                                console.log(`[WATCHDOG] Evicting download buffer chunk ${idx} (too far ahead)`);
+                                downloadBuffer.delete(idx);
+                                chunkState[idx] = 'pending';
+                            }
+                        }
+                        for (const idx of verifiedBuffer.keys()) {
+                            if (idx > nextChunkToWrite + maxAhead) {
+                                console.log(`[WATCHDOG] Evicting verified buffer chunk ${idx} (too far ahead)`);
+                                verifiedBuffer.delete(idx);
+                                chunkState[idx] = 'pending';
+                            }
+                        }
+
+                        // Reset any stuck downloading/hashing chunks to pending
+                        for (let i = 0; i < fileInfo.totalChunks; i++) {
+                            if (chunkState[i] === 'downloading' || chunkState[i] === 'hashing') {
+                                console.log(`[WATCHDOG] Resetting stuck chunk ${i} from ${chunkState[i]} to pending`);
+                                chunkState[i] = 'pending';
+                            }
+                        }
+
+                        // Make sure the critical chunk (nextChunkToWrite) is pending
+                        if (chunkState[nextChunkToWrite] !== 'done' && chunkState[nextChunkToWrite] !== 'verified') {
+                            console.log(`[WATCHDOG] Forcing chunk ${nextChunkToWrite} to pending for re-download`);
+                            downloadBuffer.delete(nextChunkToWrite);
+                            verifiedBuffer.delete(nextChunkToWrite);
+                            chunkState[nextChunkToWrite] = 'pending';
+                        }
+
+                        // Reset progress timer to give recovery time
+                        lastProgressTime = Date.now();
                     }
                 }
             }
@@ -486,7 +547,9 @@
                     // Single disk writer (sequential writes are fastest)
                     diskWriter(),
                     // Status updater
-                    statusUpdater()
+                    statusUpdater(),
+                    // Watchdog - detects and recovers from stalls
+                    watchdog()
                 ]);
 
                 clearInterval(speedInterval);
