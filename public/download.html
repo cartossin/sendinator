@@ -149,7 +149,7 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v1.5.0</div>
+    <div class="version">v1.6.0</div>
 
     <script src="/spark-md5.min.js"></script>
     <script>
@@ -295,9 +295,15 @@
                     console.log(`Chunk ${index} hash verified, adding to buffer`);
 
                     // Wait if buffer is full before adding more
+                    if (chunkBuffer.size >= MAX_BUFFER_CHUNKS) {
+                        console.log(`Buffer full (${chunkBuffer.size}), next to write: ${nextChunkToWrite}, waiting...`);
+                        // Log which chunks are in buffer
+                        console.log(`Buffer contains chunks: ${Array.from(chunkBuffer.keys()).sort((a,b) => a-b).join(', ')}`);
+                    }
                     while (chunkBuffer.size >= MAX_BUFFER_CHUNKS) {
-                        console.log(`Buffer full (${chunkBuffer.size}), waiting for disk writes...`);
-                        await new Promise(r => setTimeout(r, 50));
+                        await new Promise(r => setTimeout(r, 200));
+                        // Try to flush in case something unblocked
+                        await flushBufferToDisk();
                     }
 
                     // Copy data to Uint8Array and release original ArrayBuffer
