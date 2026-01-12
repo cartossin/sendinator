@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download - Sendinator</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #1a1a2e;
+            color: #eee;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        h1 {
+            font-size: 2.5em;
+            margin: 0 0 10px 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .tagline { color: #888; margin-bottom: 40px; }
+        .download-card {
+            width: 100%;
+            max-width: 500px;
+            background: #252542;
+            border-radius: 20px;
+            padding: 30px;
+        }
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding-bottom: 25px;
+            border-bottom: 1px solid #333;
+        }
+        .file-icon { font-size: 3em; }
+        .file-details h2 { margin: 0 0 8px 0; word-break: break-all; font-size: 1.3em; }
+        .file-size { color: #888; font-size: 0.95em; }
+        .download-btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .download-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        .download-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .progress-container { margin-top: 20px; display: none; }
+        .progress-container.active { display: block; }
+        .progress-bar {
+            height: 10px;
+            background: #1a1a2e;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.2s ease;
+        }
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85em;
+            color: #888;
+            margin-top: 10px;
+        }
+        .status {
+            text-align: center;
+            padding: 12px;
+            border-radius: 10px;
+            margin-top: 15px;
+            font-size: 0.95em;
+        }
+        .status.loading { background: rgba(102, 126, 234, 0.2); color: #667eea; }
+        .status.downloading { background: rgba(102, 126, 234, 0.2); color: #667eea; }
+        .status.verifying { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+        .status.complete { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+        .status.error { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        .status.waiting { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+        .chunk-info { font-size: 0.85em; color: #888; margin-top: 10px; text-align: center; }
+        .not-found { text-align: center; }
+        .not-found h2 { color: #ef4444; margin-bottom: 10px; }
+        .home-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #667eea;
+            text-decoration: none;
+        }
+        .home-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <h1>Sendinator</h1>
+    <p class="tagline">Your file is ready</p>
+
+    <div class="download-card" id="downloadCard">
+        <div class="file-info">
+            <div class="file-icon">📄</div>
+            <div class="file-details">
+                <h2 id="fileName">Loading...</h2>
+                <div class="file-size" id="fileSize">--</div>
+            </div>
+        </div>
+
+        <button class="download-btn" id="downloadBtn" disabled>Loading...</button>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text">
+                <span id="progressPercent">0%</span>
+                <span id="progressSpeed">-- MB/s</span>
+            </div>
+        </div>
+
+        <div class="status loading" id="status">Loading file info...</div>
+        <div class="chunk-info" id="chunkInfo"></div>
+    </div>
+
+    <div class="download-card not-found" id="notFound" style="display: none;">
+        <h2>File Not Found</h2>
+        <p>This file may have expired or been deleted.</p>
+        <a href="/" class="home-link">Upload a new file</a>
+    </div>
+
+    <script src="/spark-md5.min.js"></script>
+    <script>
+        const PARALLEL_DOWNLOADS = 6;
+
+        const fileId = window.location.pathname.split('/').pop();
+        let fileInfo = null;
+
+        const downloadCard = document.getElementById('downloadCard');
+        const notFound = document.getElementById('notFound');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressPercent = document.getElementById('progressPercent');
+        const progressSpeed = document.getElementById('progressSpeed');
+        const status = document.getElementById('status');
+        const chunkInfo = document.getElementById('chunkInfo');
+
+        async function loadFileInfo() {
+            try {
+                const res = await fetch(`/api/info/${fileId}`);
+                if (!res.ok) {
+                    showNotFound();
+                    return;
+                }
+
+                fileInfo = await res.json();
+                fileName.textContent = fileInfo.filename;
+                fileSize.textContent = formatBytes(fileInfo.size);
+                chunkInfo.textContent = `${fileInfo.totalChunks} chunks × ${formatBytes(fileInfo.chunkSize)}`;
+
+                // Enable download as soon as we have file info (even if upload incomplete)
+                downloadBtn.disabled = false;
+                if (fileInfo.complete) {
+                    downloadBtn.textContent = 'Download File';
+                    status.className = 'status complete';
+                    status.textContent = 'Ready to download';
+                } else {
+                    downloadBtn.textContent = 'Start Download';
+                    status.className = 'status waiting';
+                    status.textContent = `Upload in progress (${fileInfo.chunksReceived}/${fileInfo.totalChunks} chunks) - you can start downloading now!`;
+                }
+            } catch (err) {
+                console.error('Error loading file info:', err);
+                showNotFound();
+            }
+        }
+
+        function showNotFound() {
+            downloadCard.style.display = 'none';
+            notFound.style.display = 'block';
+        }
+
+        downloadBtn.addEventListener('click', startDownload);
+
+        async function startDownload() {
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = 'Downloading...';
+            progressContainer.classList.add('active');
+            status.className = 'status downloading';
+            status.textContent = 'Downloading available chunks...';
+
+            const chunks = new Array(fileInfo.totalChunks);
+            const chunkStatus = new Array(fileInfo.totalChunks).fill('pending'); // pending, downloading, done
+            let downloadedBytes = 0;
+
+            // Track chunk completion times for speed calculation
+            const chunkCompletions = []; // array of timestamps
+            const speedStartTime = Date.now();
+
+            // Update speed display once per second
+            const speedInterval = setInterval(() => {
+                const now = Date.now();
+                if (now - speedStartTime < 30000) {
+                    progressSpeed.textContent = 'computing speed...';
+                } else {
+                    const recent = chunkCompletions.filter(t => t > now - 30000);
+                    if (recent.length > 0) {
+                        const speed = recent.length * fileInfo.chunkSize / 30;
+                        progressSpeed.textContent = formatBytes(speed) + '/s';
+                    }
+                }
+            }, 1000);
+
+            function updateProgress() {
+                const doneCount = chunkStatus.filter(s => s === 'done').length;
+                const progress = (doneCount / fileInfo.totalChunks * 100);
+                progressFill.style.width = progress.toFixed(1) + '%';
+                progressPercent.textContent = `${doneCount}/${fileInfo.totalChunks}`;
+                chunkInfo.textContent = `${formatBytes(downloadedBytes)} / ${formatBytes(fileInfo.size)}`;
+            }
+
+            async function downloadAvailableChunk(index) {
+                if (chunkStatus[index] !== 'pending') return;
+                chunkStatus[index] = 'downloading';
+
+                try {
+                    const data = await downloadChunk(index);
+                    // Verify hash
+                    const hash = await hashData(data);
+                    if (hash !== fileInfo.chunkHashes[index]) {
+                        throw new Error(`Chunk ${index} hash mismatch`);
+                    }
+                    chunks[index] = data;
+                    downloadedBytes += data.byteLength;
+                    chunkCompletions.push(Date.now());
+                    chunkStatus[index] = 'done';
+                    updateProgress();
+                } catch (err) {
+                    // If chunk not ready yet (404), mark as pending to retry
+                    if (err.message.includes('404') || err.message.includes('not yet')) {
+                        chunkStatus[index] = 'pending';
+                    } else {
+                        throw err;
+                    }
+                }
+            }
+
+            try {
+                // Keep trying until all chunks are downloaded
+                while (chunkStatus.some(s => s !== 'done')) {
+                    // Refresh file info to get latest chunk availability (with retry)
+                    let infoRetries = 0;
+                    while (true) {
+                        try {
+                            const res = await fetch(`/api/info/${fileId}`);
+                            if (!res.ok) throw new Error('Failed to get file info');
+                            fileInfo = await res.json();
+                            break;
+                        } catch (err) {
+                            infoRetries++;
+                            const waitTime = Math.min(infoRetries * 1000, 5000);
+                            status.textContent = `Connection lost - retrying in ${waitTime/1000}s...`;
+                            status.className = 'status error';
+                            await new Promise(r => setTimeout(r, waitTime));
+                            status.className = 'status downloading';
+                        }
+                    }
+
+                    // Find chunks that are available (have hashes) but not yet downloaded
+                    const availableChunks = [];
+                    for (let i = 0; i < fileInfo.totalChunks; i++) {
+                        if (chunkStatus[i] === 'pending' && fileInfo.chunkHashes[i]) {
+                            availableChunks.push(i);
+                        }
+                    }
+
+                    if (availableChunks.length > 0) {
+                        // Download available chunks in parallel
+                        const batch = availableChunks.slice(0, PARALLEL_DOWNLOADS);
+                        await Promise.all(batch.map(i => downloadAvailableChunk(i)));
+
+                        const waitingCount = chunkStatus.filter(s => s === 'pending').length;
+                        if (waitingCount > 0 && !fileInfo.complete) {
+                            status.textContent = `Downloading... (waiting for ${waitingCount} chunks to upload)`;
+                        }
+                    } else if (!fileInfo.complete) {
+                        // No chunks available yet, wait and poll
+                        const waitingCount = chunkStatus.filter(s => s === 'pending').length;
+                        status.textContent = `Waiting for sender to upload ${waitingCount} more chunks...`;
+                        await new Promise(r => setTimeout(r, 500));
+                    }
+                }
+
+                // All chunks downloaded - assemble file
+                clearInterval(speedInterval);
+                status.className = 'status verifying';
+                status.textContent = 'Assembling file...';
+
+                const uint8Arrays = chunks.map(ab => new Uint8Array(ab));
+                const blob = new Blob(uint8Arrays, { type: 'application/octet-stream' });
+
+                // Trigger download
+                status.className = 'status complete';
+                status.textContent = 'Download complete! All chunks verified.';
+                progressFill.style.width = '100%';
+                progressPercent.textContent = '100%';
+
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileInfo.filename;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 1000);
+
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = 'Download Again';
+
+            } catch (err) {
+                clearInterval(speedInterval);
+                console.error('Download error:', err);
+                status.className = 'status error';
+                status.textContent = 'Error: ' + err.message;
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = 'Retry Download';
+            }
+        }
+
+        async function downloadChunk(index) {
+            // Retry indefinitely for network errors, but throw on 404 (chunk not ready)
+            let attempt = 0;
+            while (true) {
+                try {
+                    const res = await fetch(`/api/chunk/${fileId}/${index}`);
+                    if (res.status === 404) {
+                        // Chunk not uploaded yet - throw specific error for caller to handle
+                        throw new Error(`Chunk ${index} not yet uploaded: 404`);
+                    }
+                    if (!res.ok) {
+                        throw new Error(`Chunk ${index} failed: ${res.status}`);
+                    }
+                    return await res.arrayBuffer();
+                } catch (err) {
+                    // If it's a 404, let the caller handle it (chunk not ready yet)
+                    if (err.message.includes('404')) throw err;
+                    // Network error - retry with backoff
+                    attempt++;
+                    const waitTime = Math.min(attempt * 1000, 5000);
+                    console.log(`Download retry ${attempt} for chunk ${index}: ${err.message}`);
+                    await new Promise(r => setTimeout(r, waitTime));
+                }
+            }
+        }
+
+        function hashData(arrayBuffer) {
+            return new Promise((resolve) => {
+                const spark = new SparkMD5.ArrayBuffer();
+                spark.append(arrayBuffer);
+                resolve(spark.end());
+            });
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        loadFileInfo();
+    </script>
+</body>
+</html>

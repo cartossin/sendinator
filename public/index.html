@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sendinator - Drop a file to share</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #1a1a2e;
+            color: #eee;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        h1 {
+            font-size: 3em;
+            margin: 0 0 10px 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .tagline { color: #888; margin-bottom: 40px; }
+        .dropzone {
+            width: 100%;
+            max-width: 600px;
+            min-height: 300px;
+            border: 3px dashed #444;
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            padding: 40px;
+        }
+        .dropzone:hover, .dropzone.dragover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+        .dropzone-icon { font-size: 4em; margin-bottom: 20px; }
+        .dropzone-text { font-size: 1.2em; color: #888; }
+        .dropzone-subtext { font-size: 0.9em; color: #666; margin-top: 10px; }
+        input[type="file"] { display: none; }
+
+        .upload-container {
+            display: none;
+            width: 100%;
+            max-width: 600px;
+            background: #252542;
+            border-radius: 20px;
+            padding: 30px;
+        }
+        .upload-container.active { display: block; }
+        .file-info { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; }
+        .file-icon { font-size: 2.5em; }
+        .file-details h3 { margin: 0 0 5px 0; word-break: break-all; }
+        .file-size { color: #888; font-size: 0.9em; }
+        .share-link {
+            background: #1a1a2e;
+            border: 1px solid #444;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .share-link label { display: block; font-size: 0.9em; color: #888; margin-bottom: 8px; }
+        .share-link-input { display: flex; gap: 10px; }
+        .share-link input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #667eea;
+            font-size: 1em;
+            outline: none;
+        }
+        .copy-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .copy-btn:hover { background: #5a6fd6; }
+        .progress-container { margin-bottom: 15px; }
+        .progress-bar {
+            height: 8px;
+            background: #1a1a2e;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.2s ease;
+        }
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85em;
+            color: #888;
+            margin-top: 8px;
+        }
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
+        .status.hashing { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+        .status.uploading { background: rgba(102, 126, 234, 0.2); color: #667eea; }
+        .status.complete { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+        .status.error { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        .chunk-info { font-size: 0.85em; color: #888; margin-top: 10px; text-align: center; }
+        .new-upload-btn {
+            display: block;
+            width: 100%;
+            margin-top: 20px;
+            padding: 12px;
+            background: transparent;
+            border: 2px solid #444;
+            color: #888;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        .new-upload-btn:hover { border-color: #667eea; color: #667eea; }
+    </style>
+</head>
+<body>
+    <h1>Sendinator</h1>
+    <p class="tagline">Drop a file. Share the link. Done.</p>
+
+    <div class="dropzone" id="dropzone">
+        <div class="dropzone-icon">📁</div>
+        <div class="dropzone-text">Drag & drop a file here</div>
+        <div class="dropzone-subtext">or click to select</div>
+        <input type="file" id="fileInput">
+    </div>
+
+    <div class="upload-container" id="uploadContainer">
+        <div class="file-info">
+            <div class="file-icon">📄</div>
+            <div class="file-details">
+                <h3 id="fileName">filename.ext</h3>
+                <div class="file-size" id="fileSize">0 MB</div>
+            </div>
+        </div>
+
+        <div class="share-link" id="shareLinkContainer" style="display: none;">
+            <label>Share this link:</label>
+            <div class="share-link-input">
+                <input type="text" id="shareLink" readonly>
+                <button class="copy-btn" id="copyBtn">Copy</button>
+            </div>
+        </div>
+
+        <div class="progress-container">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text">
+                <span id="progressPercent">0%</span>
+                <span id="progressSpeed"></span>
+            </div>
+        </div>
+
+        <div class="status hashing" id="status">Preparing...</div>
+        <div class="chunk-info" id="chunkInfo"></div>
+
+        <button class="new-upload-btn" id="newUploadBtn">Upload another file</button>
+    </div>
+
+    <script src="/spark-md5.min.js"></script>
+    <script>
+        const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB - must match server
+        const PARALLEL_UPLOADS = 4;
+
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadContainer = document.getElementById('uploadContainer');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const shareLinkContainer = document.getElementById('shareLinkContainer');
+        const shareLink = document.getElementById('shareLink');
+        const copyBtn = document.getElementById('copyBtn');
+        const progressFill = document.getElementById('progressFill');
+        const progressPercent = document.getElementById('progressPercent');
+        const progressSpeed = document.getElementById('progressSpeed');
+        const status = document.getElementById('status');
+        const chunkInfo = document.getElementById('chunkInfo');
+        const newUploadBtn = document.getElementById('newUploadBtn');
+
+        // Drag and drop
+        dropzone.addEventListener('click', () => fileInput.click());
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handleFile(e.target.files[0]);
+        });
+
+        copyBtn.addEventListener('click', () => {
+            shareLink.select();
+            shareLink.setSelectionRange(0, 99999);
+            try {
+                document.execCommand('copy');
+                copyBtn.textContent = 'Copied!';
+            } catch(e) {
+                copyBtn.textContent = 'Select & Ctrl+C';
+            }
+            setTimeout(() => copyBtn.textContent = 'Copy', 2000);
+        });
+
+        newUploadBtn.addEventListener('click', () => {
+            uploadContainer.classList.remove('active');
+            dropzone.style.display = 'flex';
+            shareLinkContainer.style.display = 'none';
+            fileInput.value = '';
+        });
+
+        async function handleFile(file) {
+            dropzone.style.display = 'none';
+            uploadContainer.classList.add('active');
+            fileName.textContent = file.name;
+            fileSize.textContent = formatBytes(file.size);
+            progressFill.style.width = '0%';
+            progressPercent.textContent = '0%';
+            progressSpeed.textContent = '';
+            status.className = 'status uploading';
+            status.textContent = 'Preparing...';
+
+            const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+            chunkInfo.textContent = `${totalChunks} chunks × ${formatBytes(CHUNK_SIZE)}`;
+
+            try {
+                // Step 1: Create file on server immediately - get link right away
+                const createRes = await fetch('/api/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        filename: file.name,
+                        size: file.size,
+                        totalChunks
+                    })
+                });
+
+                const { id, url } = await createRes.json();
+                shareLink.value = window.location.origin + url;
+                shareLinkContainer.style.display = 'block';
+
+                // Step 2: Hash and upload chunks simultaneously
+                status.textContent = 'Uploading...';
+                await hashAndUploadChunks(file, id, totalChunks);
+
+                status.className = 'status complete';
+                status.textContent = 'Upload complete! Share the link.';
+                progressFill.style.width = '100%';
+                progressPercent.textContent = '100%';
+
+            } catch (err) {
+                console.error('Upload error:', err);
+                status.className = 'status error';
+                status.textContent = 'Error: ' + err.message;
+            }
+        }
+
+        function hashChunk(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const spark = new SparkMD5.ArrayBuffer();
+                    spark.append(e.target.result);
+                    resolve(spark.end());
+                };
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(blob);
+            });
+        }
+
+        async function hashAndUploadChunks(file, id, totalChunks) {
+            let completedChunks = 0;
+            let uploadedBytes = 0;
+            const pending = [];
+
+            // Track chunk completion times for speed calculation
+            const chunkCompletions = []; // array of timestamps
+            const speedStartTime = Date.now();
+
+            // Update speed display once per second
+            const speedInterval = setInterval(() => {
+                const now = Date.now();
+                if (now - speedStartTime < 30000) {
+                    progressSpeed.textContent = 'computing speed...';
+                } else {
+                    const recent = chunkCompletions.filter(t => t > now - 30000);
+                    if (recent.length > 0) {
+                        const speed = recent.length * CHUNK_SIZE / 30;
+                        progressSpeed.textContent = formatBytes(speed) + '/s';
+                    }
+                }
+            }, 1000);
+
+            for (let i = 0; i < totalChunks; i++) {
+                const promise = hashAndUploadChunk(file, id, i)
+                    .then((result) => {
+                        completedChunks++;
+                        uploadedBytes += result.size;
+                        chunkCompletions.push(Date.now());
+
+                        const progress = (completedChunks / totalChunks * 100);
+                        progressFill.style.width = progress.toFixed(1) + '%';
+                        progressPercent.textContent = `${completedChunks}/${totalChunks} chunks`;
+                        chunkInfo.textContent = `${formatBytes(uploadedBytes)} / ${formatBytes(file.size)}`;
+                    });
+
+                pending.push(promise);
+
+                // Limit parallel uploads
+                if (pending.length >= PARALLEL_UPLOADS) {
+                    await Promise.race(pending);
+                    for (let j = pending.length - 1; j >= 0; j--) {
+                        const state = await Promise.race([pending[j], Promise.resolve('pending')]);
+                        if (state !== 'pending') pending.splice(j, 1);
+                    }
+                }
+            }
+
+            await Promise.all(pending);
+            clearInterval(speedInterval);
+        }
+
+        async function hashAndUploadChunk(file, id, index) {
+            const start = index * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, file.size);
+            const chunk = file.slice(start, end);
+
+            // Hash the chunk
+            const hash = await hashChunk(chunk);
+
+            // Upload with infinite retries (resilient to network interruptions)
+            let attempt = 0;
+            while (true) {
+                try {
+                    const res = await fetch(`/api/chunk/${id}/${index}`, {
+                        method: 'POST',
+                        headers: { 'X-Chunk-Hash': hash },
+                        body: chunk
+                    });
+
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.error || 'Upload failed');
+                    }
+
+                    // Clear any connection error status
+                    if (status.textContent.includes('Connection lost')) {
+                        status.textContent = 'Uploading...';
+                        status.className = 'status uploading';
+                    }
+                    return { size: chunk.size };
+                } catch (err) {
+                    attempt++;
+                    const waitTime = Math.min(attempt * 1000, 5000); // Max 5 second wait
+                    status.textContent = `Connection lost - retrying in ${waitTime/1000}s...`;
+                    status.className = 'status error';
+                    await new Promise(r => setTimeout(r, waitTime));
+                }
+            }
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+    </script>
+</body>
+</html>
