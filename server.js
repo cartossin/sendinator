@@ -13,7 +13,7 @@ const UPLOAD_DIR = path.join(__dirname, 'uploads');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const CHUNK_SIZE = 16 * 1024 * 1024;        // 16MB chunks (can change for new uploads)
 const TARGET_BUFFER_MEMORY = 100 * 1024 * 1024; // 100MB target buffer memory for clients
-const USE_NGINX_ACCEL = process.env.USE_NGINX_ACCEL === 'true'; // Use nginx X-Accel-Redirect for downloads
+const USE_NGINX_ACCEL = process.env.USE_NGINX_ACCEL !== 'false'; // nginx X-Accel-Redirect (default: on)
 
 // MIME types for static files
 const MIME_TYPES = {
@@ -315,23 +315,6 @@ const server = http.createServer(async (req, res) => {
         res.end('Internal server error');
     }
 });
-
-// Cleanup old files (older than 24 hours)
-setInterval(() => {
-    const now = Date.now();
-    const maxAge = 24 * 60 * 60 * 1000;
-
-    for (const [id, fileInfo] of files.entries()) {
-        if (now - fileInfo.createdAt > maxAge) {
-            console.log(`Cleaning up: ${id}`);
-            const fileDir = path.join(UPLOAD_DIR, id);
-            if (fs.existsSync(fileDir)) {
-                fs.rmSync(fileDir, { recursive: true });
-            }
-            files.delete(id);
-        }
-    }
-}, 60 * 60 * 1000);
 
 // Load existing files and start server
 loadFilesFromDisk();

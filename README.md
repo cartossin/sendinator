@@ -46,56 +46,31 @@ npm install
 pm2 restart sendinator
 ```
 
-## Reverse Proxy (nginx)
+## nginx Setup (required)
 
-### Basic Setup
+nginx sits in front of Node.js and serves chunk files directly for low CPU usage.
 
-```nginx
-server {
-    listen 443 ssl;
-    server_name send.example.com;
-
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
-
-    client_max_body_size 20M;
-
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
-### Low-CPU Mode (X-Accel-Redirect)
-
-For high-performance deployments, enable nginx to serve chunk files directly. This reduces Node.js CPU usage by 10-20x.
-
-**Setup:**
 ```bash
-# Run the setup script (or see output for remote nginx)
+# Install nginx
+apt update && apt install -y nginx
+
+# Run setup script
 sudo ./setup-nginx.sh
 
-# Add the include to your nginx server block:
-# include /etc/nginx/sites-available/sendinator-accel.conf;
-
-# Reload nginx
-sudo nginx -s reload
-
-# Start sendinator with X-Accel-Redirect enabled
-USE_NGINX_ACCEL=true pm2 restart sendinator
+# Restart sendinator
+pm2 restart sendinator
 ```
 
-**How it works:**
-- Node.js handles auth and tracking only (near-zero CPU)
-- nginx serves chunk files directly using kernel-level `sendfile()`
-- Requires nginx to have read access to the uploads folder
+nginx now listens on port 80. Point your reverse proxy (NPM, etc.) to this server's port 80.
+
+**To disable nginx mode** (not recommended):
+```bash
+USE_NGINX_ACCEL=false pm2 restart sendinator
+```
 
 ## Storage
 
-Uploaded chunks are stored in `./uploads/`. Files are automatically cleaned up after 24 hours.
+Uploaded chunks are stored in `./uploads/`.
 
 ## TODO: Future Optimizations
 
