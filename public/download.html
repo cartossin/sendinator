@@ -317,6 +317,11 @@
                     try {
                         const data = await downloadChunk(chunkIndex);
 
+                        // Clear error status on successful download
+                        if (status.className.includes('error')) {
+                            status.className = 'status downloading';
+                        }
+
                         // Wait for buffer space AFTER download (prevents overflow)
                         while (downloadBuffer.size >= MAX_DOWNLOAD_BUFFER && !pipelineError) {
                             await new Promise(r => setTimeout(r, 50));
