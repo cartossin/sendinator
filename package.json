@@ -1,6 +1,6 @@
 {
   "name": "sendinator",
-  "version": "1.0.0",
+  "version": "2.3.0",
   "type": "module",
   "description": "Chunked file sharing with progressive downloads",
   "main": "server.js",
@@ -10,7 +10,5 @@
   },
   "keywords": ["file-sharing", "chunked-upload"],
   "license": "MIT",
-  "dependencies": {
-    "express": "^4.18.2"
-  }
+  "dependencies": {}
 }

@@ -1,4 +1,4 @@
-import express from 'express';
+import http from 'http';
 import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
@@ -7,13 +7,23 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
-
 // === CONFIGURATION ===
 const PORT = process.env.PORT || 3000;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
+const PUBLIC_DIR = path.join(__dirname, 'public');
 const CHUNK_SIZE = 16 * 1024 * 1024;        // 16MB chunks (can change for new uploads)
 const TARGET_BUFFER_MEMORY = 100 * 1024 * 1024; // 100MB target buffer memory for clients
+
+// MIME types for static files
+const MIME_TYPES = {
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.ico': 'image/x-icon'
+};
 
 // Ensure upload directory exists
 if (!fs.existsSync(UPLOAD_DIR)) {
@@ -52,160 +62,44 @@ function saveMetadata(id, fileInfo) {
     fs.writeFileSync(metaPath, JSON.stringify(toSave));
 }
 
-app.use(express.static('public'));
-app.use(express.json());
+// Helper: Send JSON response
+function sendJson(res, statusCode, data) {
+    res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(data));
+}
 
-// Get server configuration (for clients to fetch chunk size, buffer targets)
-app.get('/api/config', (req, res) => {
-    res.json({
-        chunkSize: CHUNK_SIZE,
-        targetBufferMemory: TARGET_BUFFER_MEMORY
-    });
-});
-
-// Create a new file - just reserve ID, hashes come with chunks
-app.post('/api/create', (req, res) => {
-    const { filename, size, totalChunks } = req.body;
-
-    if (!filename || !size || !totalChunks) {
-        return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    const id = crypto.randomBytes(4).toString('hex'); // 8 char ID
-    const fileDir = path.join(UPLOAD_DIR, id);
-    fs.mkdirSync(fileDir, { recursive: true });
-
-    const fileInfo = {
-        id,
-        filename,
-        size,
-        totalChunks,
-        chunkSize: CHUNK_SIZE,  // Store chunk size with file for backwards compatibility
-        chunkHashes: new Array(totalChunks).fill(null),
-        chunksReceived: new Set(),
-        createdAt: Date.now()
-    };
-
-    files.set(id, fileInfo);
-    saveMetadata(id, fileInfo);
-
-    console.log(`Created file: ${id} - ${filename} (${formatBytes(size)}, ${totalChunks} chunks)`);
-    res.json({ id, url: `/download/${id}` });
-});
-
-// Upload a chunk
-app.post('/api/chunk/:id/:index', (req, res) => {
-    const { id, index } = req.params;
-    const chunkIndex = parseInt(index, 10);
-    const expectedHash = req.headers['x-chunk-hash'];
-
-    const fileInfo = files.get(id);
-    if (!fileInfo) {
-        return res.status(404).json({ error: 'File not found' });
-    }
-
-    if (chunkIndex < 0 || chunkIndex >= fileInfo.totalChunks) {
-        return res.status(400).json({ error: 'Invalid chunk index' });
-    }
-
-    const chunks = [];
-    const hash = crypto.createHash('sha256');
-
-    req.on('data', (chunk) => {
-        chunks.push(chunk);
-        hash.update(chunk);
-    });
-
-    req.on('end', () => {
-        const data = Buffer.concat(chunks);
-        const computedHash = hash.digest('hex');
-
-        // Verify hash matches what client sent
-        if (expectedHash && computedHash !== expectedHash) {
-            return res.status(400).json({
-                error: 'Hash mismatch',
-                expected: expectedHash,
-                got: computedHash
-            });
-        }
-
-        // Save chunk and store its hash
-        const chunkPath = path.join(UPLOAD_DIR, id, `chunk_${chunkIndex}`);
-        fs.writeFileSync(chunkPath, data);
-        fileInfo.chunkHashes[chunkIndex] = computedHash;
-        fileInfo.chunksReceived.add(chunkIndex);
-
-        // Persist metadata to disk
-        saveMetadata(id, fileInfo);
-
-        const progress = (fileInfo.chunksReceived.size / fileInfo.totalChunks * 100).toFixed(1);
-        console.log(`Chunk ${chunkIndex}/${fileInfo.totalChunks - 1} received for ${id} (${progress}%)`);
-
-        res.json({
-            success: true,
-            chunksReceived: fileInfo.chunksReceived.size,
-            totalChunks: fileInfo.totalChunks
+// Helper: Read JSON body from request
+function readJsonBody(req) {
+    return new Promise((resolve, reject) => {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+            try {
+                resolve(JSON.parse(body));
+            } catch (err) {
+                reject(err);
+            }
         });
+        req.on('error', reject);
     });
+}
 
-    req.on('error', (err) => {
-        console.error(`Chunk upload error for ${id}:`, err);
-        res.status(500).json({ error: 'Upload failed' });
-    });
-});
-
-// Get file info
-app.get('/api/info/:id', (req, res) => {
-    const { id } = req.params;
-    const fileInfo = files.get(id);
-
-    if (!fileInfo) {
-        return res.status(404).json({ error: 'File not found' });
-    }
-
-    res.json({
-        id: fileInfo.id,
-        filename: fileInfo.filename,
-        size: fileInfo.size,
-        totalChunks: fileInfo.totalChunks,
-        chunkHashes: fileInfo.chunkHashes,
-        chunksReceived: fileInfo.chunksReceived.size,
-        complete: fileInfo.chunksReceived.size === fileInfo.totalChunks,
-        chunkSize: fileInfo.chunkSize || CHUNK_SIZE,  // Use file's chunk size, fallback for old files
-        targetBufferMemory: TARGET_BUFFER_MEMORY
-    });
-});
-
-// Download a chunk
-app.get('/api/chunk/:id/:index', async (req, res) => {
-    const { id, index } = req.params;
-    const chunkIndex = parseInt(index, 10);
-
-    const fileInfo = files.get(id);
-    if (!fileInfo) {
-        return res.status(404).json({ error: 'File not found' });
-    }
-
-    if (!fileInfo.chunksReceived.has(chunkIndex)) {
-        return res.status(404).json({ error: 'Chunk not yet uploaded' });
-    }
-
-    const chunkPath = path.join(UPLOAD_DIR, id, `chunk_${chunkIndex}`);
+// Helper: Serve static file
+async function serveStatic(res, filePath) {
     try {
-        const stat = await fs.promises.stat(chunkPath);
-        res.setHeader('Content-Length', stat.size);
-        res.setHeader('Content-Type', 'application/octet-stream');
-        res.setHeader('X-Chunk-Hash', fileInfo.chunkHashes[chunkIndex]);
-        fs.createReadStream(chunkPath).pipe(res);
+        const ext = path.extname(filePath);
+        const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+        const stat = await fs.promises.stat(filePath);
+        res.writeHead(200, {
+            'Content-Type': contentType,
+            'Content-Length': stat.size
+        });
+        fs.createReadStream(filePath).pipe(res);
     } catch (err) {
-        return res.status(404).json({ error: 'Chunk file missing' });
+        res.writeHead(404);
+        res.end('Not found');
     }
-});
-
-// Download page
-app.get('/download/:id', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'download.html'));
-});
+}
 
 function formatBytes(bytes) {
     if (bytes === 0) return '0 Bytes';
@@ -214,6 +108,194 @@ function formatBytes(bytes) {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
+
+// === REQUEST HANDLER ===
+const server = http.createServer(async (req, res) => {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const pathname = url.pathname;
+    const method = req.method;
+
+    try {
+        // GET /api/config
+        if (method === 'GET' && pathname === '/api/config') {
+            return sendJson(res, 200, {
+                chunkSize: CHUNK_SIZE,
+                targetBufferMemory: TARGET_BUFFER_MEMORY
+            });
+        }
+
+        // POST /api/create
+        if (method === 'POST' && pathname === '/api/create') {
+            const body = await readJsonBody(req);
+            const { filename, size, totalChunks } = body;
+
+            if (!filename || !size || !totalChunks) {
+                return sendJson(res, 400, { error: 'Missing required fields' });
+            }
+
+            const id = crypto.randomBytes(4).toString('hex');
+            const fileDir = path.join(UPLOAD_DIR, id);
+            fs.mkdirSync(fileDir, { recursive: true });
+
+            const fileInfo = {
+                id,
+                filename,
+                size,
+                totalChunks,
+                chunkSize: CHUNK_SIZE,
+                chunkHashes: new Array(totalChunks).fill(null),
+                chunksReceived: new Set(),
+                createdAt: Date.now()
+            };
+
+            files.set(id, fileInfo);
+            saveMetadata(id, fileInfo);
+
+            console.log(`Created file: ${id} - ${filename} (${formatBytes(size)}, ${totalChunks} chunks)`);
+            return sendJson(res, 200, { id, url: `/download/${id}` });
+        }
+
+        // POST /api/chunk/:id/:index
+        const chunkUploadMatch = pathname.match(/^\/api\/chunk\/([a-f0-9]+)\/(\d+)$/);
+        if (method === 'POST' && chunkUploadMatch) {
+            const id = chunkUploadMatch[1];
+            const chunkIndex = parseInt(chunkUploadMatch[2], 10);
+            const expectedHash = req.headers['x-chunk-hash'];
+
+            const fileInfo = files.get(id);
+            if (!fileInfo) {
+                return sendJson(res, 404, { error: 'File not found' });
+            }
+
+            if (chunkIndex < 0 || chunkIndex >= fileInfo.totalChunks) {
+                return sendJson(res, 400, { error: 'Invalid chunk index' });
+            }
+
+            const chunks = [];
+            const hash = crypto.createHash('sha256');
+
+            req.on('data', (chunk) => {
+                chunks.push(chunk);
+                hash.update(chunk);
+            });
+
+            req.on('end', () => {
+                const data = Buffer.concat(chunks);
+                const computedHash = hash.digest('hex');
+
+                if (expectedHash && computedHash !== expectedHash) {
+                    return sendJson(res, 400, {
+                        error: 'Hash mismatch',
+                        expected: expectedHash,
+                        got: computedHash
+                    });
+                }
+
+                const chunkPath = path.join(UPLOAD_DIR, id, `chunk_${chunkIndex}`);
+                fs.writeFileSync(chunkPath, data);
+                fileInfo.chunkHashes[chunkIndex] = computedHash;
+                fileInfo.chunksReceived.add(chunkIndex);
+                saveMetadata(id, fileInfo);
+
+                const progress = (fileInfo.chunksReceived.size / fileInfo.totalChunks * 100).toFixed(1);
+                console.log(`Chunk ${chunkIndex}/${fileInfo.totalChunks - 1} received for ${id} (${progress}%)`);
+
+                sendJson(res, 200, {
+                    success: true,
+                    chunksReceived: fileInfo.chunksReceived.size,
+                    totalChunks: fileInfo.totalChunks
+                });
+            });
+
+            req.on('error', (err) => {
+                console.error(`Chunk upload error for ${id}:`, err);
+                sendJson(res, 500, { error: 'Upload failed' });
+            });
+
+            return; // Response sent in event handlers
+        }
+
+        // GET /api/info/:id
+        const infoMatch = pathname.match(/^\/api\/info\/([a-f0-9]+)$/);
+        if (method === 'GET' && infoMatch) {
+            const id = infoMatch[1];
+            const fileInfo = files.get(id);
+
+            if (!fileInfo) {
+                return sendJson(res, 404, { error: 'File not found' });
+            }
+
+            return sendJson(res, 200, {
+                id: fileInfo.id,
+                filename: fileInfo.filename,
+                size: fileInfo.size,
+                totalChunks: fileInfo.totalChunks,
+                chunkHashes: fileInfo.chunkHashes,
+                chunksReceived: fileInfo.chunksReceived.size,
+                complete: fileInfo.chunksReceived.size === fileInfo.totalChunks,
+                chunkSize: fileInfo.chunkSize || CHUNK_SIZE,
+                targetBufferMemory: TARGET_BUFFER_MEMORY
+            });
+        }
+
+        // GET /api/chunk/:id/:index
+        const chunkDownloadMatch = pathname.match(/^\/api\/chunk\/([a-f0-9]+)\/(\d+)$/);
+        if (method === 'GET' && chunkDownloadMatch) {
+            const id = chunkDownloadMatch[1];
+            const chunkIndex = parseInt(chunkDownloadMatch[2], 10);
+
+            const fileInfo = files.get(id);
+            if (!fileInfo) {
+                return sendJson(res, 404, { error: 'File not found' });
+            }
+
+            if (!fileInfo.chunksReceived.has(chunkIndex)) {
+                return sendJson(res, 404, { error: 'Chunk not yet uploaded' });
+            }
+
+            const chunkPath = path.join(UPLOAD_DIR, id, `chunk_${chunkIndex}`);
+            try {
+                const stat = await fs.promises.stat(chunkPath);
+                res.writeHead(200, {
+                    'Content-Length': stat.size,
+                    'Content-Type': 'application/octet-stream',
+                    'X-Chunk-Hash': fileInfo.chunkHashes[chunkIndex]
+                });
+                fs.createReadStream(chunkPath).pipe(res);
+            } catch (err) {
+                return sendJson(res, 404, { error: 'Chunk file missing' });
+            }
+            return;
+        }
+
+        // GET /download/:id - serve download page
+        const downloadMatch = pathname.match(/^\/download\/([a-f0-9]+)$/);
+        if (method === 'GET' && downloadMatch) {
+            return serveStatic(res, path.join(PUBLIC_DIR, 'download.html'));
+        }
+
+        // Static files from public/
+        if (method === 'GET') {
+            const safePath = pathname === '/' ? '/index.html' : pathname;
+            // Prevent directory traversal
+            const filePath = path.join(PUBLIC_DIR, safePath);
+            if (!filePath.startsWith(PUBLIC_DIR)) {
+                res.writeHead(403);
+                return res.end('Forbidden');
+            }
+            return serveStatic(res, filePath);
+        }
+
+        // 404 for everything else
+        res.writeHead(404);
+        res.end('Not found');
+
+    } catch (err) {
+        console.error('Request error:', err);
+        res.writeHead(500);
+        res.end('Internal server error');
+    }
+});
 
 // Cleanup old files (older than 24 hours)
 setInterval(() => {
@@ -235,7 +317,7 @@ setInterval(() => {
 // Load existing files and start server
 loadFilesFromDisk();
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log(`Sendinator running on http://localhost:${PORT}`);
     console.log(`Chunk size: ${formatBytes(CHUNK_SIZE)}`);
 });
