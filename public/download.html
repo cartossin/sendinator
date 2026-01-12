@@ -149,11 +149,11 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v1.7.0</div>
+    <div class="version">v1.8.0</div>
 
     <script src="/spark-md5.min.js"></script>
     <script>
-        const PARALLEL_DOWNLOADS = 6;
+        const PARALLEL_DOWNLOADS = 3;
         const MAX_BUFFER_CHUNKS = 20; // Don't download too far ahead
 
         const fileId = window.location.pathname.split('/').pop();
@@ -312,9 +312,10 @@
                         await flushBufferToDisk();
                     }
 
-                    // Copy data to Uint8Array and release original ArrayBuffer
-                    const chunk = new Uint8Array(data);
-                    data = null; // Help GC release the ArrayBuffer
+                    // Copy data (not view) so original ArrayBuffer can be GC'd
+                    const chunk = new Uint8Array(data.byteLength);
+                    chunk.set(new Uint8Array(data));
+                    data = null;
 
                     chunkBuffer.set(index, chunk);
                     await flushBufferToDisk();
