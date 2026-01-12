@@ -499,15 +499,30 @@
         }
 
         async function downloadChunk(index) {
-            // Try once - let worker handle retry logic to avoid blocking
-            const res = await fetch(`/api/chunk/${fileId}/${index}`);
-            if (res.status === 404) {
-                throw { is404: true, message: `Chunk ${index} not yet uploaded` };
+            // Try once with timeout - let worker handle retry logic to avoid blocking
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+            try {
+                const res = await fetch(`/api/chunk/${fileId}/${index}`, {
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+
+                if (res.status === 404) {
+                    throw { is404: true, message: `Chunk ${index} not yet uploaded` };
+                }
+                if (!res.ok) {
+                    throw { isRetryable: true, message: `HTTP ${res.status}` };
+                }
+                return await res.arrayBuffer();
+            } catch (err) {
+                clearTimeout(timeout);
+                if (err.name === 'AbortError') {
+                    throw { isRetryable: true, message: 'Request timeout' };
+                }
+                throw { isRetryable: true, message: err.message || 'Network error' };
             }
-            if (!res.ok) {
-                throw { isRetryable: true, message: `HTTP ${res.status}` };
-            }
-            return await res.arrayBuffer();
         }
 
         async function hashData(arrayBuffer) {
