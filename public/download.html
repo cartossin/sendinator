@@ -150,7 +150,7 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v2.7.2</div>
+    <div class="version">v2.7.3</div>
 
     <script>
         // Pipeline configuration
@@ -236,6 +236,9 @@
             progressContainer.classList.add('active');
             status.className = 'status downloading';
             status.textContent = 'Starting pipeline...';
+
+            // Use Web Lock API to prevent background tab throttling
+            const doDownload = async () => {
 
             // Fetch fresh file info before starting (ensures we have latest hashes)
             try {
@@ -633,6 +636,14 @@
                 status.textContent = 'Error: ' + err.message;
                 downloadBtn.disabled = false;
                 downloadBtn.textContent = 'Retry Download';
+            }
+            };
+
+            // Execute with Web Lock if available
+            if (navigator.locks) {
+                await navigator.locks.request('sendinator-download', doDownload);
+            } else {
+                await doDownload();
             }
         }
 

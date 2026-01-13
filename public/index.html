@@ -182,7 +182,7 @@
         <button class="new-upload-btn" id="newUploadBtn">Upload another file</button>
     </div>
 
-    <div class="version">v2.7.2</div>
+    <div class="version">v2.7.3</div>
 
     <script>
         const PARALLEL_UPLOADS = 4;
@@ -268,7 +268,8 @@
             const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
             chunkInfo.textContent = `${totalChunks} chunks × ${formatBytes(CHUNK_SIZE)}`;
 
-            try {
+            // Acquire web lock to prevent background throttling
+            const doUpload = async () => {
                 // Step 1: Create file on server immediately - get link right away
                 const createRes = await fetch('/api/create', {
                     method: 'POST',
@@ -292,7 +293,15 @@
                 status.textContent = 'Upload complete! Share the link.';
                 progressFill.style.width = '100%';
                 progressPercent.textContent = '100%';
+            };
 
+            try {
+                // Use Web Lock API to prevent background tab throttling
+                if (navigator.locks) {
+                    await navigator.locks.request('sendinator-upload', doUpload);
+                } else {
+                    await doUpload();
+                }
             } catch (err) {
                 console.error('Upload error:', err);
                 status.className = 'status error';
