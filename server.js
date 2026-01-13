@@ -809,6 +809,12 @@ const server = http.createServer(async (req, res) => {
 
         // Static files from public/
         if (method === 'GET') {
+            // Redirect to admin setup if no passkey exists
+            if (pathname === '/' && !getPasskey()) {
+                res.writeHead(302, { 'Location': '/admin' });
+                return res.end();
+            }
+
             const safePath = pathname === '/' ? '/index.html' : pathname;
             // Prevent directory traversal
             const filePath = path.join(PUBLIC_DIR, safePath);
