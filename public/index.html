@@ -134,6 +134,15 @@
             font-size: 1em;
         }
         .new-upload-btn:hover { border-color: #667eea; color: #667eea; }
+        .admin-link {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            color: #333;
+            font-size: 0.75em;
+            text-decoration: none;
+        }
+        .admin-link:hover { color: #667eea; }
         .version { position: fixed; bottom: 10px; right: 10px; color: #444; font-size: 0.75em; }
     </style>
 </head>
@@ -182,7 +191,8 @@
         <button class="new-upload-btn" id="newUploadBtn">Upload another file</button>
     </div>
 
-    <div class="version">v2.8.0</div>
+    <a href="/admin" class="admin-link">Admin</a>
+    <div class="version">v2.9.0</div>
 
     <script>
         const PARALLEL_UPLOADS = 4;

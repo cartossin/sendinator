@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Sendinator</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #1a1a2e;
+            color: #eee;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+        }
+        h1 {
+            font-size: 2em;
+            margin: 0 0 10px 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .header-right {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        .home-link {
+            color: #667eea;
+            text-decoration: none;
+        }
+        .home-link:hover { text-decoration: underline; }
+
+        /* Auth section */
+        .auth-container {
+            max-width: 400px;
+            margin: 100px auto;
+            background: #252542;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+        }
+        .auth-container h2 {
+            margin: 0 0 10px 0;
+            color: #fff;
+        }
+        .auth-container p {
+            color: #888;
+            margin-bottom: 30px;
+        }
+        .auth-btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .auth-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        .auth-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .auth-error {
+            color: #ef4444;
+            margin-top: 15px;
+        }
+
+        /* Admin panel */
+        .admin-panel { display: none; }
+        .admin-panel.active { display: block; }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+            padding: 12px 16px;
+            background: #252542;
+            border: 1px solid #444;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1em;
+        }
+        .search-box:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .search-box::placeholder { color: #666; }
+        .refresh-btn {
+            padding: 12px 20px;
+            background: #252542;
+            border: 1px solid #444;
+            border-radius: 8px;
+            color: #888;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        .refresh-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        /* Table */
+        .table-container {
+            background: #252542;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+        th {
+            background: #1a1a2e;
+            color: #888;
+            font-weight: 600;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            user-select: none;
+        }
+        th:hover { color: #667eea; }
+        th.sorted-asc::after { content: ' ▲'; }
+        th.sorted-desc::after { content: ' ▼'; }
+        tr:hover { background: rgba(102, 126, 234, 0.1); }
+        .filename {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .progress-cell {
+            width: 100px;
+        }
+        .progress-bar {
+            height: 6px;
+            background: #1a1a2e;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+        }
+        .progress-fill.complete {
+            background: #10b981;
+        }
+        .progress-text {
+            font-size: 0.8em;
+            color: #888;
+            margin-top: 4px;
+        }
+        .size-cell, .date-cell {
+            white-space: nowrap;
+            color: #888;
+        }
+        .actions-cell {
+            width: 100px;
+        }
+        .delete-btn {
+            padding: 6px 12px;
+            background: transparent;
+            border: 1px solid #ef4444;
+            border-radius: 6px;
+            color: #ef4444;
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+        .delete-btn:hover {
+            background: #ef4444;
+            color: white;
+        }
+        .copy-btn {
+            padding: 6px 12px;
+            background: transparent;
+            border: 1px solid #667eea;
+            border-radius: 6px;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 0.85em;
+            margin-right: 8px;
+        }
+        .copy-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .stat-card {
+            background: #252542;
+            padding: 15px 20px;
+            border-radius: 10px;
+            min-width: 150px;
+        }
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: 600;
+            color: #fff;
+        }
+        .stat-label {
+            font-size: 0.85em;
+            color: #888;
+            margin-top: 4px;
+        }
+        .version { position: fixed; bottom: 10px; right: 10px; color: #444; font-size: 0.75em; }
+    </style>
+</head>
+<body>
+    <!-- Auth Section -->
+    <div class="auth-container" id="authContainer">
+        <h2 id="authTitle">Admin Setup</h2>
+        <p id="authDesc">Create a passkey to secure your admin panel. This uses your device's biometrics or security key.</p>
+        <button class="auth-btn" id="authBtn">Create Passkey</button>
+        <div class="auth-error" id="authError"></div>
+    </div>
+
+    <!-- Admin Panel -->
+    <div class="admin-panel" id="adminPanel">
+        <div class="header">
+            <h1>Sendinator Admin</h1>
+            <div class="header-right">
+                <a href="/" class="home-link">Back to Upload</a>
+            </div>
+        </div>
+
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="totalFiles">0</div>
+                <div class="stat-label">Total Files</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalSize">0 B</div>
+                <div class="stat-label">Total Size</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="completeFiles">0</div>
+                <div class="stat-label">Complete</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <input type="text" class="search-box" id="searchBox" placeholder="Search filenames...">
+            <button class="refresh-btn" id="refreshBtn">Refresh</button>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th data-sort="filename">Filename</th>
+                        <th data-sort="size">Size</th>
+                        <th data-sort="progress">Progress</th>
+                        <th data-sort="createdAt">Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="uploadsList">
+                </tbody>
+            </table>
+            <div class="empty-state" id="emptyState" style="display: none;">
+                No uploads yet
+            </div>
+        </div>
+    </div>
+
+    <div class="version">v2.9.0</div>
+
+    <script>
+        let uploads = [];
+        let sortColumn = 'createdAt';
+        let sortDirection = 'desc';
+        let sessionToken = null;
+
+        const authContainer = document.getElementById('authContainer');
+        const adminPanel = document.getElementById('adminPanel');
+        const authTitle = document.getElementById('authTitle');
+        const authDesc = document.getElementById('authDesc');
+        const authBtn = document.getElementById('authBtn');
+        const authError = document.getElementById('authError');
+        const searchBox = document.getElementById('searchBox');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const uploadsList = document.getElementById('uploadsList');
+        const emptyState = document.getElementById('emptyState');
+
+        // Check auth status on load
+        async function checkAuth() {
+            try {
+                const res = await fetch('/api/admin/status');
+                const data = await res.json();
+
+                if (!data.passkeyExists) {
+                    // First time setup
+                    authTitle.textContent = 'Admin Setup';
+                    authDesc.textContent = 'Create a passkey to secure your admin panel. This uses your device\'s biometrics or security key.';
+                    authBtn.textContent = 'Create Passkey';
+                    authBtn.onclick = registerPasskey;
+                } else {
+                    // Login required
+                    authTitle.textContent = 'Admin Login';
+                    authDesc.textContent = 'Authenticate with your passkey to access the admin panel.';
+                    authBtn.textContent = 'Login with Passkey';
+                    authBtn.onclick = loginPasskey;
+                }
+            } catch (err) {
+                authError.textContent = 'Failed to check auth status';
+            }
+        }
+
+        // WebAuthn Registration
+        async function registerPasskey() {
+            authBtn.disabled = true;
+            authError.textContent = '';
+
+            try {
+                // Get challenge from server
+                const optionsRes = await fetch('/api/admin/register/start', { method: 'POST' });
+                const options = await optionsRes.json();
+
+                // Convert base64 to ArrayBuffer
+                options.challenge = base64ToBuffer(options.challenge);
+                options.user.id = base64ToBuffer(options.user.id);
+
+                // Create credential
+                const credential = await navigator.credentials.create({ publicKey: options });
+
+                // Send to server
+                const verifyRes = await fetch('/api/admin/register/finish', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: credential.id,
+                        rawId: bufferToBase64(credential.rawId),
+                        type: credential.type,
+                        response: {
+                            clientDataJSON: bufferToBase64(credential.response.clientDataJSON),
+                            attestationObject: bufferToBase64(credential.response.attestationObject)
+                        }
+                    })
+                });
+
+                const result = await verifyRes.json();
+                if (result.success) {
+                    sessionToken = result.token;
+                    showAdminPanel();
+                } else {
+                    authError.textContent = result.error || 'Registration failed';
+                }
+            } catch (err) {
+                authError.textContent = err.message || 'Registration failed';
+            }
+
+            authBtn.disabled = false;
+        }
+
+        // WebAuthn Login
+        async function loginPasskey() {
+            authBtn.disabled = true;
+            authError.textContent = '';
+
+            try {
+                // Get challenge from server
+                const optionsRes = await fetch('/api/admin/login/start', { method: 'POST' });
+                const options = await optionsRes.json();
+
+                // Convert base64 to ArrayBuffer
+                options.challenge = base64ToBuffer(options.challenge);
+                if (options.allowCredentials) {
+                    options.allowCredentials = options.allowCredentials.map(c => ({
+                        ...c,
+                        id: base64ToBuffer(c.id)
+                    }));
+                }
+
+                // Get credential
+                const credential = await navigator.credentials.get({ publicKey: options });
+
+                // Send to server
+                const verifyRes = await fetch('/api/admin/login/finish', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: credential.id,
+                        rawId: bufferToBase64(credential.rawId),
+                        type: credential.type,
+                        response: {
+                            clientDataJSON: bufferToBase64(credential.response.clientDataJSON),
+                            authenticatorData: bufferToBase64(credential.response.authenticatorData),
+                            signature: bufferToBase64(credential.response.signature),
+                            userHandle: credential.response.userHandle ? bufferToBase64(credential.response.userHandle) : null
+                        }
+                    })
+                });
+
+                const result = await verifyRes.json();
+                if (result.success) {
+                    sessionToken = result.token;
+                    showAdminPanel();
+                } else {
+                    authError.textContent = result.error || 'Login failed';
+                }
+            } catch (err) {
+                authError.textContent = err.message || 'Login failed';
+            }
+
+            authBtn.disabled = false;
+        }
+
+        function showAdminPanel() {
+            authContainer.style.display = 'none';
+            adminPanel.classList.add('active');
+            loadUploads();
+        }
+
+        async function loadUploads() {
+            try {
+                const res = await fetch('/api/admin/uploads', {
+                    headers: { 'Authorization': `Bearer ${sessionToken}` }
+                });
+                if (res.status === 401) {
+                    // Token expired, reload
+                    location.reload();
+                    return;
+                }
+                const data = await res.json();
+                uploads = data.uploads;
+                updateStats(data);
+                renderTable();
+            } catch (err) {
+                console.error('Failed to load uploads:', err);
+            }
+        }
+
+        function updateStats(data) {
+            document.getElementById('totalFiles').textContent = data.uploads.length;
+            document.getElementById('totalSize').textContent = formatBytes(data.totalSize);
+            document.getElementById('completeFiles').textContent = data.completeCount;
+        }
+
+        function renderTable() {
+            const searchTerm = searchBox.value.toLowerCase();
+            let filtered = uploads.filter(u =>
+                u.filename.toLowerCase().includes(searchTerm)
+            );
+
+            // Sort
+            filtered.sort((a, b) => {
+                let aVal = a[sortColumn];
+                let bVal = b[sortColumn];
+
+                if (sortColumn === 'progress') {
+                    aVal = a.chunksReceived / a.totalChunks;
+                    bVal = b.chunksReceived / b.totalChunks;
+                }
+
+                if (typeof aVal === 'string') {
+                    aVal = aVal.toLowerCase();
+                    bVal = bVal.toLowerCase();
+                }
+
+                if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            // Update sort indicators
+            document.querySelectorAll('th[data-sort]').forEach(th => {
+                th.classList.remove('sorted-asc', 'sorted-desc');
+                if (th.dataset.sort === sortColumn) {
+                    th.classList.add(sortDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
+                }
+            });
+
+            if (filtered.length === 0) {
+                uploadsList.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            uploadsList.innerHTML = filtered.map(u => {
+                const progress = (u.chunksReceived / u.totalChunks * 100);
+                const isComplete = u.chunksReceived === u.totalChunks;
+                return `
+                    <tr>
+                        <td class="filename" title="${escapeHtml(u.filename)}">${escapeHtml(u.filename)}</td>
+                        <td class="size-cell">${formatBytes(u.size)}</td>
+                        <td class="progress-cell">
+                            <div class="progress-bar">
+                                <div class="progress-fill ${isComplete ? 'complete' : ''}" style="width: ${progress}%"></div>
+                            </div>
+                            <div class="progress-text">${u.chunksReceived}/${u.totalChunks}</div>
+                        </td>
+                        <td class="date-cell">${formatDate(u.createdAt)}</td>
+                        <td class="actions-cell">
+                            <button class="copy-btn" onclick="copyLink('${u.id}')">Copy</button>
+                            <button class="delete-btn" onclick="deleteUpload('${u.id}')">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function deleteUpload(id) {
+            if (!confirm('Delete this upload? This cannot be undone.')) return;
+
+            try {
+                const res = await fetch(`/api/admin/uploads/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${sessionToken}` }
+                });
+                if (res.ok) {
+                    uploads = uploads.filter(u => u.id !== id);
+                    renderTable();
+                }
+            } catch (err) {
+                alert('Delete failed: ' + err.message);
+            }
+        }
+
+        function copyLink(id) {
+            const url = `${window.location.origin}/download/${id}`;
+            navigator.clipboard.writeText(url).then(() => {
+                // Brief feedback could be added here
+            });
+        }
+
+        // Event listeners
+        searchBox.addEventListener('input', renderTable);
+        refreshBtn.addEventListener('click', loadUploads);
+
+        document.querySelectorAll('th[data-sort]').forEach(th => {
+            th.addEventListener('click', () => {
+                const col = th.dataset.sort;
+                if (sortColumn === col) {
+                    sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                } else {
+                    sortColumn = col;
+                    sortDirection = 'asc';
+                }
+                renderTable();
+            });
+        });
+
+        // Helpers
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatDate(timestamp) {
+            const d = new Date(timestamp);
+            return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function base64ToBuffer(base64) {
+            const binary = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        function bufferToBase64(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < bytes.length; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        }
+
+        // Init
+        checkAuth();
+    </script>
+</body>
+</html>
