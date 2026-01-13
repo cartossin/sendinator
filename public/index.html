@@ -182,7 +182,7 @@
         <button class="new-upload-btn" id="newUploadBtn">Upload another file</button>
     </div>
 
-    <div class="version">v2.7.3</div>
+    <div class="version">v2.7.4</div>
 
     <script>
         const PARALLEL_UPLOADS = 4;
@@ -268,6 +268,13 @@
             const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
             chunkInfo.textContent = `${totalChunks} chunks × ${formatBytes(CHUNK_SIZE)}`;
 
+            // Prevent accidental tab close during upload
+            const preventClose = (e) => {
+                e.preventDefault();
+                e.returnValue = '';
+            };
+            window.addEventListener('beforeunload', preventClose);
+
             // Acquire web lock to prevent background throttling
             const doUpload = async () => {
                 // Step 1: Create file on server immediately - get link right away
@@ -306,6 +313,8 @@
                 console.error('Upload error:', err);
                 status.className = 'status error';
                 status.textContent = 'Error: ' + err.message;
+            } finally {
+                window.removeEventListener('beforeunload', preventClose);
             }
         }
 

@@ -150,7 +150,7 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v2.7.3</div>
+    <div class="version">v2.7.4</div>
 
     <script>
         // Pipeline configuration
@@ -236,6 +236,13 @@
             progressContainer.classList.add('active');
             status.className = 'status downloading';
             status.textContent = 'Starting pipeline...';
+
+            // Prevent accidental tab close during download
+            const preventClose = (e) => {
+                e.preventDefault();
+                e.returnValue = '';
+            };
+            window.addEventListener('beforeunload', preventClose);
 
             // Use Web Lock API to prevent background tab throttling
             const doDownload = async () => {
@@ -640,10 +647,14 @@
             };
 
             // Execute with Web Lock if available
-            if (navigator.locks) {
-                await navigator.locks.request('sendinator-download', doDownload);
-            } else {
-                await doDownload();
+            try {
+                if (navigator.locks) {
+                    await navigator.locks.request('sendinator-download', doDownload);
+                } else {
+                    await doDownload();
+                }
+            } finally {
+                window.removeEventListener('beforeunload', preventClose);
             }
         }
 
