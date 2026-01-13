@@ -148,7 +148,7 @@ const server = http.createServer(async (req, res) => {
                 return sendJson(res, 400, { error: 'Missing required fields' });
             }
 
-            const id = crypto.randomBytes(4).toString('hex');
+            const id = crypto.randomBytes(16).toString('hex');
             const fileDir = path.join(UPLOAD_DIR, id);
             fs.mkdirSync(fileDir, { recursive: true });
 
