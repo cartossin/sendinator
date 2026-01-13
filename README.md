@@ -86,10 +86,12 @@ To reset passkey: delete `/var/lib/sendinator/passkey.json` and restart.
 
 ## TODO
 
-### Admin Panel Improvements
-- Clearer visibility of upload completion status (done vs incomplete)
+### Download Page Improvements
+- Clearer visibility of upload completion status on download page (done vs still uploading)
 - Stale upload warning (no new chunks received in X time)
-- Download percentage indicator
+
+### Admin Panel Improvements
+- Download percentage indicator (how much has been downloaded by recipients)
 
 ### Upload Keys
 - Admin can issue upload keys with bandwidth limits (e.g., "50GB one-time upload")
