@@ -135,6 +135,7 @@
             </div>
             <div class="progress-text">
                 <span id="progressPercent">0%</span>
+                <span id="progressEta">--</span>
                 <span id="progressSpeed">-- MB/s</span>
             </div>
         </div>
@@ -149,7 +150,7 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v2.7.1</div>
+    <div class="version">v2.7.2</div>
 
     <script>
         // Pipeline configuration
@@ -168,6 +169,7 @@
         const progressContainer = document.getElementById('progressContainer');
         const progressFill = document.getElementById('progressFill');
         const progressPercent = document.getElementById('progressPercent');
+        const progressEta = document.getElementById('progressEta');
         const progressSpeed = document.getElementById('progressSpeed');
         const status = document.getElementById('status');
         const chunkInfo = document.getElementById('chunkInfo');
@@ -269,6 +271,10 @@
                     const windowSeconds = Math.min(30, (now - chunkCompletions[0]) / 1000);
                     const speed = recent.length * fileInfo.chunkSize / windowSeconds;
                     progressSpeed.textContent = formatBytes(speed) + '/s';
+                    // Calculate ETA
+                    const remainingBytes = fileInfo.size - writtenBytes;
+                    const etaSeconds = remainingBytes / speed;
+                    progressEta.textContent = formatTime(etaSeconds);
                 }
             }, 1000);
 
@@ -672,6 +678,19 @@
             const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatTime(seconds) {
+            if (!isFinite(seconds) || seconds < 0) return '--';
+            if (seconds < 60) return Math.ceil(seconds) + 's';
+            if (seconds < 3600) {
+                const m = Math.floor(seconds / 60);
+                const s = Math.ceil(seconds % 60);
+                return m + 'm ' + s + 's';
+            }
+            const h = Math.floor(seconds / 3600);
+            const m = Math.ceil((seconds % 3600) / 60);
+            return h + 'h ' + m + 'm';
         }
 
         loadFileInfo();

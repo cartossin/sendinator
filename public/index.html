@@ -171,6 +171,7 @@
             </div>
             <div class="progress-text">
                 <span id="progressPercent">0%</span>
+                <span id="progressEta"></span>
                 <span id="progressSpeed"></span>
             </div>
         </div>
@@ -181,7 +182,7 @@
         <button class="new-upload-btn" id="newUploadBtn">Upload another file</button>
     </div>
 
-    <div class="version">v2.7.1</div>
+    <div class="version">v2.7.2</div>
 
     <script>
         const PARALLEL_UPLOADS = 4;
@@ -197,6 +198,7 @@
         const copyBtn = document.getElementById('copyBtn');
         const progressFill = document.getElementById('progressFill');
         const progressPercent = document.getElementById('progressPercent');
+        const progressEta = document.getElementById('progressEta');
         const progressSpeed = document.getElementById('progressSpeed');
         const status = document.getElementById('status');
         const chunkInfo = document.getElementById('chunkInfo');
@@ -313,7 +315,7 @@
             // Track chunk completion times for speed calculation
             const chunkCompletions = []; // array of timestamps
 
-            // Update speed display once per second
+            // Update speed and ETA display once per second
             const speedInterval = setInterval(() => {
                 const now = Date.now();
                 const recent = chunkCompletions.filter(t => t > now - 30000);
@@ -321,6 +323,10 @@
                     const windowSeconds = Math.min(30, (now - chunkCompletions[0]) / 1000);
                     const speed = recent.length * chunkSize / windowSeconds;
                     progressSpeed.textContent = formatBytes(speed) + '/s';
+                    // Calculate ETA
+                    const remainingBytes = file.size - uploadedBytes;
+                    const etaSeconds = remainingBytes / speed;
+                    progressEta.textContent = formatTime(etaSeconds);
                 }
             }, 1000);
 
@@ -398,6 +404,19 @@
             const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatTime(seconds) {
+            if (!isFinite(seconds) || seconds < 0) return '--';
+            if (seconds < 60) return Math.ceil(seconds) + 's';
+            if (seconds < 3600) {
+                const m = Math.floor(seconds / 60);
+                const s = Math.ceil(seconds % 60);
+                return m + 'm ' + s + 's';
+            }
+            const h = Math.floor(seconds / 3600);
+            const m = Math.ceil((seconds % 3600) / 60);
+            return h + 'h ' + m + 'm';
         }
     </script>
 </body>
