@@ -502,15 +502,11 @@
         }
 
         // Scan dropped items (handles mix of files and folders)
-        async function* scanDroppedItems(dataTransfer) {
-            const items = [...dataTransfer.items];
-            const entries = items
-                .map(item => item.webkitGetAsEntry?.())
-                .filter(e => e);
-
+        // entries and files must be pre-captured from dataTransfer before calling
+        async function* scanDroppedEntries(entries, files) {
             if (entries.length === 0) {
                 // Fallback for browsers without webkitGetAsEntry
-                for (const file of dataTransfer.files) {
+                for (const file of files) {
                     yield { path: file.name, file, isDirectory: false };
                 }
                 return;
@@ -581,11 +577,13 @@
                 if (!rootName) {
                     rootName = item.path.split('/')[0];
                 }
-                // Progress callback every 100ms
+                // Progress callback every 100ms - yield to event loop for UI update
                 const now = Date.now();
                 if (onProgress && now - lastUpdate > 100) {
                     lastUpdate = now;
                     onProgress(fileCount, dirCount, totalSize);
+                    // Let the browser render the update
+                    await new Promise(r => setTimeout(r, 0));
                 }
             }
 
@@ -619,7 +617,12 @@
             e.preventDefault();
             dropzone.classList.remove('dragover');
             if (e.dataTransfer.items.length) {
-                const items = scanDroppedItems(e.dataTransfer);
+                // Must capture entries synchronously - dataTransfer is cleared after event handler returns
+                const entries = [...e.dataTransfer.items]
+                    .map(item => item.webkitGetAsEntry?.())
+                    .filter(entry => entry);
+                const files = [...e.dataTransfer.files];
+                const items = scanDroppedEntries(entries, files);
                 await handleItems(items);
             }
         });
