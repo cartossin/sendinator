@@ -107,6 +107,41 @@
         .chunk-info { font-size: 0.85em; color: #888; margin-top: 10px; text-align: center; }
         .direct-link { font-size: 0.8em; color: #666; margin-top: 15px; text-align: center; }
         .direct-link a { color: #667eea; }
+        .learn-more { color: #667eea; cursor: pointer; text-decoration: underline; }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: #252542;
+            border-radius: 16px;
+            padding: 25px;
+            max-width: 500px;
+            width: 90%;
+        }
+        .modal h3 { margin: 0 0 20px 0; color: #fff; }
+        .modal table { width: 100%; border-collapse: collapse; }
+        .modal th, .modal td { padding: 10px; text-align: left; border-bottom: 1px solid #333; }
+        .modal th { color: #888; font-weight: normal; font-size: 0.9em; }
+        .modal td:first-child { color: #ccc; }
+        .modal .check { color: #10b981; }
+        .modal .cross { color: #666; }
+        .modal-close {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+        }
         .not-found { text-align: center; }
         .not-found h2 { color: #ef4444; margin-bottom: 10px; }
         .home-link {
@@ -149,7 +184,41 @@
         <div class="status loading" id="status">Loading file info...</div>
         <div class="chunk-info" id="chunkInfo"></div>
         <div class="direct-link" id="directLinkContainer" style="display: none;">
-            <a href="#" id="directLink" target="_blank">Direct link</a> (no resume, for embedding)
+            <a href="#" id="directLink" target="_blank">Direct link</a>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modalOverlay" onclick="closeModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <h3>Download Methods</h3>
+            <table>
+                <tr>
+                    <th></th>
+                    <th>Managed</th>
+                    <th>Direct</th>
+                </tr>
+                <tr>
+                    <td>Resume if interrupted</td>
+                    <td class="check">✓</td>
+                    <td class="cross">✗</td>
+                </tr>
+                <tr>
+                    <td>Verify file integrity</td>
+                    <td class="check">✓</td>
+                    <td class="cross">✗</td>
+                </tr>
+                <tr>
+                    <td>Start before upload finishes</td>
+                    <td class="check">✓</td>
+                    <td class="cross">✗</td>
+                </tr>
+                <tr>
+                    <td>Works in all browsers</td>
+                    <td class="cross">✗</td>
+                    <td class="check">✓</td>
+                </tr>
+            </table>
+            <button class="modal-close" onclick="closeModal()">Got it</button>
         </div>
     </div>
 
@@ -236,7 +305,7 @@
                     // Chrome/Edge - can start downloading immediately even if incomplete
                     downloadBtn.disabled = false;
                     if (fileInfo.complete) {
-                        downloadBtn.textContent = 'Download File';
+                        downloadBtn.textContent = 'Download';
                         status.className = 'status complete';
                         status.textContent = 'Ready to download';
                     } else {
@@ -245,16 +314,14 @@
                         status.textContent = 'You can start downloading now while upload continues';
                     }
                 } else {
-                    // Safari/Firefox - show warning and offer unmanaged download
+                    // Safari/Firefox - grey out button, point to direct link
+                    downloadBtn.disabled = true;
+                    downloadBtn.textContent = 'Download';
                     status.className = 'status warning';
                     if (fileInfo.complete) {
-                        downloadBtn.disabled = false;
-                        downloadBtn.textContent = 'Unmanaged Download';
-                        status.textContent = 'Your browser does not support resilient downloads. If the download fails, you must restart from the beginning.';
+                        status.innerHTML = 'Unsupported browser. Use Chrome/Edge or click the direct link below. <span class="learn-more" onclick="showModal()">Learn more</span>';
                     } else {
-                        downloadBtn.disabled = true;
-                        downloadBtn.textContent = 'Waiting for upload...';
-                        status.textContent = 'File upload is still in progress. Please wait, or use Chrome/Edge for resilient downloads.';
+                        status.innerHTML = 'Unsupported browser and upload in progress. Please wait, or use Chrome/Edge. <span class="learn-more" onclick="showModal()">Learn more</span>';
                     }
                 }
 
@@ -272,6 +339,14 @@
         function showNotFound() {
             downloadCard.style.display = 'none';
             notFound.style.display = 'block';
+        }
+
+        function showModal() {
+            document.getElementById('modalOverlay').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('modalOverlay').classList.remove('active');
         }
 
         downloadBtn.addEventListener('click', startDownload);
