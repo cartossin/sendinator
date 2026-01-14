@@ -712,19 +712,45 @@ const server = http.createServer(async (req, res) => {
                 'Content-Length': fileInfo.size
             });
 
-            // Stream chunks in order
-            for (let i = 0; i < fileInfo.totalChunks; i++) {
-                const chunkPath = path.join(UPLOAD_DIR, id, `chunk_${i}`);
-                const chunkData = await fs.promises.readFile(chunkPath);
-                res.write(chunkData);
-            }
+            // Stream chunks in order using proper streaming (low memory)
+            let chunkIndex = 0;
+            let aborted = false;
 
-            // Track download bytes against quota
-            keyData.usedBytes += fileInfo.size;
-            saveUploadKeys();
+            const streamNextChunk = () => {
+                if (aborted) return;
 
-            console.log(`Direct download completed: ${id} - ${fileInfo.filename} (${formatBytes(fileInfo.size)})`);
-            res.end();
+                if (chunkIndex >= fileInfo.totalChunks) {
+                    // All chunks streamed - track quota and finish
+                    keyData.usedBytes += fileInfo.size;
+                    saveUploadKeys();
+                    console.log(`Direct download completed: ${id} - ${fileInfo.filename} (${formatBytes(fileInfo.size)})`);
+                    res.end();
+                    return;
+                }
+
+                const chunkPath = path.join(UPLOAD_DIR, id, `chunk_${chunkIndex}`);
+                const stream = fs.createReadStream(chunkPath);
+                chunkIndex++;
+
+                stream.on('error', (err) => {
+                    console.error(`Stream error on chunk ${chunkIndex - 1}:`, err.message);
+                    if (!aborted) res.end();
+                });
+
+                stream.on('end', streamNextChunk);
+
+                stream.pipe(res, { end: false });
+            };
+
+            // Handle client disconnect
+            res.on('close', () => {
+                aborted = true;
+                if (chunkIndex < fileInfo.totalChunks) {
+                    console.log(`Direct download aborted: ${id} at chunk ${chunkIndex}/${fileInfo.totalChunks}`);
+                }
+            });
+
+            streamNextChunk();
             return;
         }
 
