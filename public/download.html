@@ -105,6 +105,8 @@
         .status.waiting { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
         .status.warning { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
         .chunk-info { font-size: 0.85em; color: #888; margin-top: 10px; text-align: center; }
+        .direct-link { font-size: 0.8em; color: #666; margin-top: 15px; text-align: center; }
+        .direct-link a { color: #667eea; }
         .not-found { text-align: center; }
         .not-found h2 { color: #ef4444; margin-bottom: 10px; }
         .home-link {
@@ -146,6 +148,9 @@
 
         <div class="status loading" id="status">Loading file info...</div>
         <div class="chunk-info" id="chunkInfo"></div>
+        <div class="direct-link" id="directLinkContainer" style="display: none;">
+            <a href="#" id="directLink" target="_blank">Direct link</a> (no resume, for embedding)
+        </div>
     </div>
 
     <div class="download-card not-found" id="notFound" style="display: none;">
@@ -180,6 +185,8 @@
         const progressSpeed = document.getElementById('progressSpeed');
         const status = document.getElementById('status');
         const chunkInfo = document.getElementById('chunkInfo');
+        const directLinkContainer = document.getElementById('directLinkContainer');
+        const directLink = document.getElementById('directLink');
         let refreshInterval = null;
 
         async function loadFileInfo() {
@@ -249,6 +256,12 @@
                         downloadBtn.textContent = 'Waiting for upload...';
                         status.textContent = 'File upload is still in progress. Please wait, or use Chrome/Edge for resilient downloads.';
                     }
+                }
+
+                // Show direct link for complete files (all browsers)
+                if (fileInfo.complete) {
+                    directLink.href = `/api/download/${fileId}`;
+                    directLinkContainer.style.display = 'block';
                 }
             } catch (err) {
                 console.error('Error loading file info:', err);

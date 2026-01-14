@@ -666,7 +666,7 @@ const server = http.createServer(async (req, res) => {
             return;
         }
 
-        // GET /api/download/:id - direct download (fallback for browsers without File System Access API)
+        // GET /api/download/:id - direct download with Range support
         const directDownloadMatch = pathname.match(/^\/api\/download\/([a-f0-9]+)$/);
         if (method === 'GET' && directDownloadMatch) {
             const id = directDownloadMatch[1];
@@ -695,45 +695,101 @@ const server = http.createServer(async (req, res) => {
                 return sendJson(res, 403, { error: 'Download unavailable - quota exhausted' });
             }
 
-            // Verify all chunks exist before starting download
-            for (let i = 0; i < fileInfo.totalChunks; i++) {
-                const chunkPath = path.join(UPLOAD_DIR, id, `chunk_${i}`);
-                try {
-                    await fs.promises.access(chunkPath);
-                } catch (err) {
-                    return sendJson(res, 500, { error: `Missing chunk ${i}` });
+            // Parse Range header for resume/seeking support
+            const rangeHeader = req.headers.range;
+            let start = 0;
+            let end = fileInfo.size - 1;
+
+            if (rangeHeader) {
+                const match = rangeHeader.match(/bytes=(\d*)-(\d*)/);
+                if (match) {
+                    start = match[1] ? parseInt(match[1]) : 0;
+                    end = match[2] ? parseInt(match[2]) : fileInfo.size - 1;
+
+                    // Validate range
+                    if (start > end || start >= fileInfo.size) {
+                        res.writeHead(416, { 'Content-Range': `bytes */${fileInfo.size}` });
+                        return res.end();
+                    }
+                    end = Math.min(end, fileInfo.size - 1);
                 }
             }
 
-            // Set headers for download
-            res.writeHead(200, {
-                'Content-Type': 'application/octet-stream',
-                'Content-Disposition': `attachment; filename="${encodeURIComponent(fileInfo.filename)}"`,
-                'Content-Length': fileInfo.size
-            });
+            const contentLength = end - start + 1;
+            const chunkSize = fileInfo.chunkSize;
 
-            // Stream chunks in order using proper streaming (low memory)
-            let chunkIndex = 0;
+            // Calculate which chunks we need
+            const startChunk = Math.floor(start / chunkSize);
+            const endChunk = Math.floor(end / chunkSize);
+            const startOffsetInChunk = start % chunkSize;
+            const endOffsetInChunk = end % chunkSize;
+
+            // Detect content type from filename for proper embedding
+            const ext = path.extname(fileInfo.filename).toLowerCase();
+            const mimeTypes = {
+                '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+                '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+                '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
+                '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
+                '.pdf': 'application/pdf', '.txt': 'text/plain', '.html': 'text/html',
+                '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json'
+            };
+            const contentType = mimeTypes[ext] || 'application/octet-stream';
+
+            // Set headers - 206 for partial, 200 for full
+            const headers = {
+                'Content-Type': contentType,
+                'Content-Length': contentLength,
+                'Accept-Ranges': 'bytes',
+                'Content-Disposition': `inline; filename="${encodeURIComponent(fileInfo.filename)}"`
+            };
+
+            if (rangeHeader) {
+                headers['Content-Range'] = `bytes ${start}-${end}/${fileInfo.size}`;
+                res.writeHead(206, headers);
+            } else {
+                res.writeHead(200, headers);
+            }
+
+            // Stream the requested range
+            let currentChunk = startChunk;
             let aborted = false;
+            let bytesServed = 0;
 
             const streamNextChunk = () => {
                 if (aborted) return;
 
-                if (chunkIndex >= fileInfo.totalChunks) {
-                    // All chunks streamed - track quota and finish
-                    keyData.usedBytes += fileInfo.size;
+                if (currentChunk > endChunk) {
+                    // Done - track quota for bytes actually served
+                    keyData.usedBytes += bytesServed;
                     saveUploadKeys();
-                    console.log(`Direct download completed: ${id} - ${fileInfo.filename} (${formatBytes(fileInfo.size)})`);
+                    console.log(`Direct download ${rangeHeader ? '(range) ' : ''}completed: ${id} - ${formatBytes(bytesServed)}`);
                     res.end();
                     return;
                 }
 
-                const chunkPath = path.join(UPLOAD_DIR, id, `chunk_${chunkIndex}`);
-                const stream = fs.createReadStream(chunkPath);
-                chunkIndex++;
+                const chunkPath = path.join(UPLOAD_DIR, id, `chunk_${currentChunk}`);
+
+                // Calculate read boundaries within this chunk
+                let readStart = 0;
+                let readEnd = chunkSize - 1;
+
+                if (currentChunk === startChunk) {
+                    readStart = startOffsetInChunk;
+                }
+                if (currentChunk === endChunk) {
+                    readEnd = endOffsetInChunk;
+                }
+
+                const stream = fs.createReadStream(chunkPath, { start: readStart, end: readEnd });
+                currentChunk++;
+
+                stream.on('data', (chunk) => {
+                    bytesServed += chunk.length;
+                });
 
                 stream.on('error', (err) => {
-                    console.error(`Stream error on chunk ${chunkIndex - 1}:`, err.message);
+                    console.error(`Stream error:`, err.message);
                     if (!aborted) res.end();
                 });
 
@@ -745,8 +801,13 @@ const server = http.createServer(async (req, res) => {
             // Handle client disconnect
             res.on('close', () => {
                 aborted = true;
-                if (chunkIndex < fileInfo.totalChunks) {
-                    console.log(`Direct download aborted: ${id} at chunk ${chunkIndex}/${fileInfo.totalChunks}`);
+                if (currentChunk <= endChunk) {
+                    // Track partial download quota
+                    if (bytesServed > 0) {
+                        keyData.usedBytes += bytesServed;
+                        saveUploadKeys();
+                    }
+                    console.log(`Direct download aborted: ${id} after ${formatBytes(bytesServed)}`);
                 }
             });
 
