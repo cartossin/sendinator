@@ -461,7 +461,13 @@
         dropzone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropzone.classList.remove('dragover');
-            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+            if (e.dataTransfer.files.length) {
+                // Check if it's a directory using webkitGetAsEntry
+                const item = e.dataTransfer.items?.[0];
+                const entry = item?.webkitGetAsEntry?.();
+                const isDirectory = entry?.isDirectory || false;
+                handleFile(e.dataTransfer.files[0], isDirectory);
+            }
         });
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length) handleFile(e.target.files[0]);
@@ -507,12 +513,15 @@
         }
         init();
 
-        async function handleFile(file) {
-            console.log('handleFile called with:', file);
+        async function handleFile(file, isDirectory = false) {
+            // Check if folder was dropped
+            if (isDirectory) {
+                alert('Folder uploads are not yet supported. Please select a single file.');
+                return;
+            }
 
             // Validate file object
             if (!file || !file.name || typeof file.size !== 'number') {
-                console.error('Invalid file object:', file);
                 alert('Invalid file. Please try again.');
                 return;
             }
