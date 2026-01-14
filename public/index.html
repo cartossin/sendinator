@@ -508,6 +508,19 @@
         init();
 
         async function handleFile(file) {
+            console.log('handleFile called with:', file);
+
+            // Validate file object
+            if (!file || !file.name || typeof file.size !== 'number') {
+                console.error('Invalid file object:', file);
+                alert('Invalid file. Please try again.');
+                return;
+            }
+            if (file.size === 0) {
+                alert('Cannot upload empty files.');
+                return;
+            }
+
             // Refresh session to get latest quota (in case it was updated in another tab)
             await checkSession();
 
