@@ -157,15 +157,24 @@
             display: flex;
             gap: 8px;
         }
-        .eye-btn, .copy-key-btn, .delete-key-btn {
+        .copy-key-btn, .delete-key-btn {
             padding: 6px 12px;
             border-radius: 6px;
             font-size: 0.85em;
             cursor: pointer;
             border: 1px solid;
         }
-        .eye-btn { background: transparent; border-color: #888; color: #888; }
-        .eye-btn:hover { background: #888; color: white; }
+        .eye-btn-inline {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9em;
+            padding: 2px 6px;
+            margin-left: 6px;
+            opacity: 0.6;
+            vertical-align: middle;
+        }
+        .eye-btn-inline:hover { opacity: 1; }
         .copy-key-btn { background: transparent; border-color: #667eea; color: #667eea; }
         .copy-key-btn:hover { background: #667eea; color: white; }
         .delete-key-btn { background: transparent; border-color: #ef4444; color: #ef4444; }
@@ -550,6 +559,7 @@
                                 <div class="key-label">
                                     ${escapeHtml(k.label) || '(No label)'}
                                     <span class="key-string">${revealedKeys.has(k.key) ? k.key : '••••••••••••••••••••'}</span>
+                                    <button class="eye-btn-inline" onclick="event.stopPropagation(); toggleReveal('${k.key}')" title="${revealedKeys.has(k.key) ? 'Hide' : 'Show'} key">${revealedKeys.has(k.key) ? '👁' : '👁‍🗨'}</button>
                                 </div>
                                 <div class="key-meta">${k.uploads.length} file${k.uploads.length !== 1 ? 's' : ''} &bull; Created ${formatDate(k.createdAt)}</div>
                             </div>
@@ -560,7 +570,6 @@
                                 <div class="quota-text">${formatBytes(k.usedBytes)} / ${formatBytes(k.quotaBytes)}</div>
                             </div>
                             <div class="key-actions" onclick="event.stopPropagation()">
-                                <button class="eye-btn" onclick="toggleReveal('${k.key}')" title="${revealedKeys.has(k.key) ? 'Hide' : 'Show'} key">${revealedKeys.has(k.key) ? '👁' : '👁‍🗨'}</button>
                                 <button class="copy-key-btn" onclick="copyKey('${k.key}')">Copy</button>
                                 <button class="delete-key-btn" onclick="deleteKey('${k.key}')">Delete</button>
                             </div>
