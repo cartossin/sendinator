@@ -320,6 +320,14 @@
 
         // Check auth status on load
         async function checkAuth() {
+            // Check if WebAuthn is available
+            if (!window.PublicKeyCredential) {
+                authTitle.textContent = 'Not Supported';
+                authDesc.textContent = 'WebAuthn is not available. You need HTTPS or localhost to use passkeys.';
+                authBtn.style.display = 'none';
+                return;
+            }
+
             try {
                 const res = await fetch('/api/admin/status');
                 const data = await res.json();
@@ -547,6 +555,12 @@
                 if (res.ok) {
                     uploads = uploads.filter(u => u.id !== id);
                     renderTable();
+                    // Update stats
+                    const totalSize = uploads.reduce((sum, u) => sum + u.size, 0);
+                    const completeCount = uploads.filter(u => u.chunksReceived === u.totalChunks).length;
+                    document.getElementById('totalFiles').textContent = uploads.length;
+                    document.getElementById('totalSize').textContent = formatBytes(totalSize);
+                    document.getElementById('completeFiles').textContent = completeCount;
                 }
             } catch (err) {
                 alert('Delete failed: ' + err.message);
