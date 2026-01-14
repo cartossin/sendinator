@@ -103,6 +103,7 @@
         .status.complete { background: rgba(16, 185, 129, 0.2); color: #10b981; }
         .status.error { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
         .status.waiting { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+        .status.warning { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
         .chunk-info { font-size: 0.85em; color: #888; margin-top: 10px; text-align: center; }
         .not-found { text-align: center; }
         .not-found h2 { color: #ef4444; margin-bottom: 10px; }
@@ -237,17 +238,16 @@
                         status.textContent = 'You can start downloading now while upload continues';
                     }
                 } else {
-                    // Safari/Firefox - need fallback download
+                    // Safari/Firefox - show warning and offer unmanaged download
+                    status.className = 'status warning';
                     if (fileInfo.complete) {
                         downloadBtn.disabled = false;
-                        downloadBtn.textContent = 'Download File';
-                        status.className = 'status complete';
-                        status.textContent = 'Ready to download';
+                        downloadBtn.textContent = 'Unmanaged Download';
+                        status.textContent = 'Your browser does not support resilient downloads. If the download fails, you must restart from the beginning.';
                     } else {
                         downloadBtn.disabled = true;
                         downloadBtn.textContent = 'Waiting for upload...';
-                        status.className = 'status waiting';
-                        status.textContent = 'File upload is still in progress. Please wait, or use Chrome/Edge to start downloading immediately.';
+                        status.textContent = 'File upload is still in progress. Please wait, or use Chrome/Edge for resilient downloads.';
                     }
                 }
             } catch (err) {
@@ -790,83 +790,9 @@
         }
 
         // Fallback download for browsers without File System Access API
-        async function startFallbackDownload() {
-            if (!fileInfo.complete) {
-                status.className = 'status error';
-                status.textContent = 'File upload is not complete. Please wait or use Chrome/Edge.';
-                return;
-            }
-
-            downloadBtn.disabled = true;
-            downloadBtn.textContent = 'Downloading...';
-            progressContainer.classList.add('active');
-            status.className = 'status downloading';
-            status.textContent = 'Starting download...';
-
-            // Track download progress
-            let downloadedBytes = 0;
-            const startTime = Date.now();
-
-            const updateProgress = () => {
-                const pct = (downloadedBytes / fileInfo.size * 100).toFixed(1);
-                progressFill.style.width = pct + '%';
-                progressPercent.textContent = pct + '%';
-
-                const elapsed = (Date.now() - startTime) / 1000;
-                if (elapsed > 0 && downloadedBytes > 0) {
-                    const speed = downloadedBytes / elapsed;
-                    progressSpeed.textContent = formatBytes(speed) + '/s';
-                    const remaining = (fileInfo.size - downloadedBytes) / speed;
-                    progressEta.textContent = formatTime(remaining);
-                }
-            };
-
-            try {
-                const res = await fetch(`/api/download/${fileId}`);
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({ error: 'Download failed' }));
-                    throw new Error(err.error || `HTTP ${res.status}`);
-                }
-
-                // Stream the response and track progress
-                const reader = res.body.getReader();
-                const chunks = [];
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    chunks.push(value);
-                    downloadedBytes += value.length;
-                    updateProgress();
-                    status.textContent = `Downloading: ${formatBytes(downloadedBytes)} / ${formatBytes(fileInfo.size)}`;
-                }
-
-                // Combine chunks into a blob
-                const blob = new Blob(chunks);
-
-                // Create download link
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = fileInfo.filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-
-                status.className = 'status complete';
-                status.textContent = 'Download complete!';
-                progressFill.style.width = '100%';
-                progressPercent.textContent = '100%';
-                downloadBtn.disabled = false;
-                downloadBtn.textContent = 'Download Again';
-
-            } catch (err) {
-                status.className = 'status error';
-                status.textContent = 'Error: ' + err.message;
-                downloadBtn.disabled = false;
-                downloadBtn.textContent = 'Retry Download';
-            }
+        // Just navigate to the direct download URL - browser handles it natively
+        function startFallbackDownload() {
+            window.location.href = `/api/download/${fileId}`;
         }
 
         loadFileInfo();
