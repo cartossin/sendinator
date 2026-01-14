@@ -201,9 +201,9 @@ async function serveStatic(res, filePath) {
 }
 
 function formatBytes(bytes) {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return '0 B';
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const sizes = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
@@ -887,13 +887,13 @@ const server = http.createServer(async (req, res) => {
                     return sendJson(res, 400, { error: 'Invalid quota' });
                 }
 
-                // Convert to bytes based on unit
+                // Convert to bytes based on unit (binary units)
                 const unitMultipliers = {
-                    'MB': 1024 * 1024,
-                    'GB': 1024 * 1024 * 1024,
-                    'TB': 1024 * 1024 * 1024 * 1024
+                    'MiB': 1024 * 1024,
+                    'GiB': 1024 * 1024 * 1024,
+                    'TiB': 1024 * 1024 * 1024 * 1024
                 };
-                const multiplier = unitMultipliers[quotaUnit] || unitMultipliers['GB'];
+                const multiplier = unitMultipliers[quotaUnit] || unitMultipliers['GiB'];
                 const quotaBytes = Math.round(quotaValue * multiplier);
 
                 const key = generateUploadKey();
@@ -908,7 +908,7 @@ const server = http.createServer(async (req, res) => {
                 uploadKeys.set(key, keyData);
                 saveUploadKeys();
 
-                console.log(`Created upload key: ${key} (${quotaValue}${quotaUnit || 'GB'}, label: "${label || ''}")`);
+                console.log(`Created upload key: ${key} (${quotaValue} ${quotaUnit || 'GiB'}, label: "${label || ''}")`);
                 return sendJson(res, 200, { key, ...keyData });
 
             } catch (err) {

@@ -312,9 +312,9 @@
                     <div style="display: flex; gap: 6px;">
                         <input type="number" id="keyQuota" value="10" min="1" step="1" style="width: 80px;">
                         <select id="keyQuotaUnit" style="padding: 10px; background: #1a1a2e; border: 1px solid #444; border-radius: 8px; color: #fff;">
-                            <option value="MB">MB</option>
-                            <option value="GB" selected>GB</option>
-                            <option value="TB">TB</option>
+                            <option value="MiB">MiB</option>
+                            <option value="GiB" selected>GiB</option>
+                            <option value="TiB">TiB</option>
                         </select>
                     </div>
                 </div>
@@ -670,7 +670,7 @@
         function formatBytes(bytes) {
             if (bytes === 0) return '0 B';
             const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const sizes = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
