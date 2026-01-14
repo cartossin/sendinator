@@ -492,8 +492,8 @@
                 let bVal = b[sortColumn];
 
                 if (sortColumn === 'progress') {
-                    aVal = a.chunksReceived / a.totalChunks;
-                    bVal = b.chunksReceived / b.totalChunks;
+                    aVal = a.totalChunks > 0 ? a.chunksReceived / a.totalChunks : 0;
+                    bVal = b.totalChunks > 0 ? b.chunksReceived / b.totalChunks : 0;
                 }
 
                 if (typeof aVal === 'string') {
@@ -522,8 +522,8 @@
 
             emptyState.style.display = 'none';
             uploadsList.innerHTML = filtered.map(u => {
-                const progress = (u.chunksReceived / u.totalChunks * 100);
-                const isComplete = u.chunksReceived === u.totalChunks;
+                const progress = u.totalChunks > 0 ? (u.chunksReceived / u.totalChunks * 100) : 0;
+                const isComplete = u.totalChunks > 0 && u.chunksReceived === u.totalChunks;
                 return `
                     <tr>
                         <td class="filename" title="${escapeHtml(u.filename)}">${escapeHtml(u.filename)}</td>
@@ -557,7 +557,7 @@
                     renderTable();
                     // Update stats
                     const totalSize = uploads.reduce((sum, u) => sum + u.size, 0);
-                    const completeCount = uploads.filter(u => u.chunksReceived === u.totalChunks).length;
+                    const completeCount = uploads.filter(u => u.totalChunks > 0 && u.chunksReceived === u.totalChunks).length;
                     document.getElementById('totalFiles').textContent = uploads.length;
                     document.getElementById('totalSize').textContent = formatBytes(totalSize);
                     document.getElementById('completeFiles').textContent = completeCount;
@@ -601,6 +601,7 @@
         }
 
         function formatDate(timestamp) {
+            if (!timestamp) return 'Unknown';
             const d = new Date(timestamp);
             return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }

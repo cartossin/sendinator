@@ -236,6 +236,12 @@ function decodeCBOR(buffer) {
         } else if (additional === 26) {
             value = buffer.readUInt32BE(offset);
             offset += 4;
+        } else if (additional === 27) {
+            // 8-byte integer (read as BigInt, convert to Number for our use)
+            value = Number(buffer.readBigUInt64BE(offset));
+            offset += 8;
+        } else {
+            throw new Error(`Unsupported CBOR additional info: ${additional}`);
         }
 
         switch (major) {
