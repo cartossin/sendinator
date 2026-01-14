@@ -372,12 +372,20 @@
         <div class="empty-state" id="emptyState" style="display: none;">
             No upload keys yet. Create one above to get started.
         </div>
+
+        <div id="orphanedSection" style="display: none; margin-top: 30px;">
+            <div class="section-header">
+                <h2>Orphaned Files</h2>
+            </div>
+            <div id="orphanedList"></div>
+        </div>
     </div>
 
     <div class="version">v3.0.0</div>
 
     <script>
         let keys = [];
+        let orphanedUploads = [];
         let sessionToken = null;
         let expandedKeys = new Set();
         let revealedKeys = new Set();
@@ -526,6 +534,7 @@
             authContainer.style.display = 'none';
             adminPanel.classList.add('active');
             loadKeys();
+            startAutoRefresh();
         }
 
         async function loadKeys() {
@@ -540,10 +549,25 @@
                 }
                 const data = await res.json();
                 keys = data.keys;
+                orphanedUploads = data.orphanedUploads || [];
                 updateStats();
                 renderKeys();
+                renderOrphanedUploads();
             } catch (err) {
                 console.error('Failed to load keys:', err);
+            }
+        }
+
+        // Auto-refresh every second
+        let refreshInterval = null;
+        function startAutoRefresh() {
+            if (refreshInterval) return;
+            refreshInterval = setInterval(loadKeys, 1000);
+        }
+        function stopAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
             }
         }
 
@@ -555,6 +579,11 @@
                 for (const u of k.uploads) {
                     totalSize += u.size;
                 }
+            }
+            // Include orphaned files in totals
+            totalFiles += orphanedUploads.length;
+            for (const u of orphanedUploads) {
+                totalSize += u.size;
             }
             document.getElementById('totalKeys').textContent = keys.length;
             document.getElementById('totalFiles').textContent = totalFiles;
@@ -649,6 +678,60 @@
             renderKeys();
         }
 
+        function renderOrphanedUploads() {
+            const section = document.getElementById('orphanedSection');
+            const list = document.getElementById('orphanedList');
+
+            if (orphanedUploads.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = 'block';
+            list.innerHTML = `
+                <div class="key-card expanded">
+                    <div class="key-uploads" style="display: block; border-top: none;">
+                        ${orphanedUploads.map(u => {
+                            const progress = u.totalChunks > 0 ? (u.chunksReceived / u.totalChunks * 100) : 0;
+                            const isComplete = u.totalChunks > 0 && u.chunksReceived === u.totalChunks;
+                            return `
+                                <div class="upload-row">
+                                    <div class="upload-filename" title="${escapeHtml(u.filename)}">${escapeHtml(u.filename)}</div>
+                                    <div class="upload-size">${formatBytes(u.size)}</div>
+                                    <div class="upload-progress">
+                                        <div class="progress-bar">
+                                            <div class="progress-fill ${isComplete ? 'complete' : ''}" style="width: ${progress}%"></div>
+                                        </div>
+                                        <div class="progress-text">${u.chunksReceived}/${u.totalChunks}</div>
+                                    </div>
+                                    <div class="upload-actions">
+                                        <button class="upload-copy" onclick="copyLink('${u.id}')">Copy Link</button>
+                                        <button class="upload-delete" onclick="deleteOrphanedUpload('${u.id}')">Delete</button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function deleteOrphanedUpload(id) {
+            if (!confirm('Delete this file permanently?')) return;
+
+            try {
+                const res = await fetch('/api/admin/uploads/' + id, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${sessionToken}` }
+                });
+                if (res.ok) {
+                    loadKeys();
+                }
+            } catch (err) {
+                alert('Delete failed: ' + err.message);
+            }
+        }
+
         async function createKey() {
             const label = document.getElementById('keyLabel').value;
             const quotaValue = parseFloat(document.getElementById('keyQuota').value);
@@ -707,7 +790,7 @@
         }
 
         async function deleteKey(key) {
-            if (!confirm('Delete this upload key and all its uploads? This cannot be undone.')) return;
+            if (!confirm('Delete this upload key? Files will be moved to Orphaned Files.')) return;
 
             try {
                 const res = await fetch(`/api/admin/keys/${key}`, {

@@ -951,7 +951,25 @@ const server = http.createServer(async (req, res) => {
                 });
             }
 
-            return sendJson(res, 200, { keys });
+            // Find orphaned uploads (no uploadKey or key doesn't exist)
+            const orphanedUploads = [];
+            for (const [uploadId, info] of files) {
+                if (!info.uploadKey || !uploadKeys.has(info.uploadKey)) {
+                    const chunksReceived = info.chunksReceived instanceof Set
+                        ? info.chunksReceived.size
+                        : (Array.isArray(info.chunksReceived) ? info.chunksReceived.length : 0);
+                    orphanedUploads.push({
+                        id: uploadId,
+                        filename: info.filename,
+                        size: info.size,
+                        totalChunks: info.totalChunks,
+                        chunksReceived,
+                        createdAt: info.createdAt || 0
+                    });
+                }
+            }
+
+            return sendJson(res, 200, { keys, orphanedUploads });
         }
 
         // DELETE /api/admin/keys/:key - delete an upload key
@@ -967,18 +985,13 @@ const server = http.createServer(async (req, res) => {
                 return sendJson(res, 404, { error: 'Key not found' });
             }
 
-            // Delete all uploads associated with this key
+            // Orphan all uploads associated with this key (remove uploadKey reference)
             for (const uploadId of keyData.uploads) {
                 const fileInfo = files.get(uploadId);
                 if (fileInfo) {
-                    try {
-                        const fileDir = path.join(UPLOAD_DIR, uploadId);
-                        fs.rmSync(fileDir, { recursive: true, force: true });
-                        files.delete(uploadId);
-                        console.log(`Deleted upload: ${uploadId} - ${fileInfo.filename}`);
-                    } catch (err) {
-                        console.error(`Failed to delete upload ${uploadId}:`, err);
-                    }
+                    fileInfo.uploadKey = null;
+                    saveMetadata(uploadId, fileInfo);
+                    console.log(`Orphaned upload: ${uploadId} - ${fileInfo.filename}`);
                 }
             }
 
