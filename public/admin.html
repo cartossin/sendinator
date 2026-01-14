@@ -324,7 +324,10 @@
             </div>
             <div class="new-key-display" id="newKeyDisplay" style="display: none;">
                 <label>New Upload Key (copy it now - won't be shown again!):</label>
-                <div class="new-key-value" id="newKeyValue"></div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div class="new-key-value" id="newKeyValue"></div>
+                    <button class="copy-key-btn" onclick="copyNewKey()">Copy</button>
+                </div>
             </div>
         </div>
 
@@ -642,6 +645,16 @@
         }
 
         function copyKey(key) {
+            navigator.clipboard.writeText(key).then(() => {
+                const btn = event.target;
+                const orig = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = orig, 1500);
+            });
+        }
+
+        function copyNewKey() {
+            const key = document.getElementById('newKeyValue').textContent;
             navigator.clipboard.writeText(key).then(() => {
                 const btn = event.target;
                 const orig = btn.textContent;
