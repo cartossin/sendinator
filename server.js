@@ -666,9 +666,9 @@ const server = http.createServer(async (req, res) => {
             return;
         }
 
-        // GET /api/download/:id - direct download with Range support
+        // GET/HEAD /api/download/:id - direct download with Range support
         const directDownloadMatch = pathname.match(/^\/api\/download\/([a-f0-9]+)$/);
-        if (method === 'GET' && directDownloadMatch) {
+        if ((method === 'GET' || method === 'HEAD') && directDownloadMatch) {
             const id = directDownloadMatch[1];
 
             const fileInfo = files.get(id);
@@ -703,8 +703,15 @@ const server = http.createServer(async (req, res) => {
             if (rangeHeader) {
                 const match = rangeHeader.match(/bytes=(\d*)-(\d*)/);
                 if (match) {
-                    start = match[1] ? parseInt(match[1]) : 0;
-                    end = match[2] ? parseInt(match[2]) : fileInfo.size - 1;
+                    if (match[1] === '' && match[2]) {
+                        // Suffix range: bytes=-500 means last 500 bytes
+                        const suffix = parseInt(match[2]);
+                        start = Math.max(0, fileInfo.size - suffix);
+                        end = fileInfo.size - 1;
+                    } else {
+                        start = match[1] ? parseInt(match[1]) : 0;
+                        end = match[2] ? parseInt(match[2]) : fileInfo.size - 1;
+                    }
 
                     // Validate range
                     if (start > end || start >= fileInfo.size) {
@@ -749,6 +756,11 @@ const server = http.createServer(async (req, res) => {
                 res.writeHead(206, headers);
             } else {
                 res.writeHead(200, headers);
+            }
+
+            // HEAD request - return headers only, no body
+            if (method === 'HEAD') {
+                return res.end();
             }
 
             // Stream the requested range
