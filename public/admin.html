@@ -157,13 +157,15 @@
             display: flex;
             gap: 8px;
         }
-        .copy-key-btn, .delete-key-btn {
+        .eye-btn, .copy-key-btn, .delete-key-btn {
             padding: 6px 12px;
             border-radius: 6px;
             font-size: 0.85em;
             cursor: pointer;
             border: 1px solid;
         }
+        .eye-btn { background: transparent; border-color: #888; color: #888; }
+        .eye-btn:hover { background: #888; color: white; }
         .copy-key-btn { background: transparent; border-color: #667eea; color: #667eea; }
         .copy-key-btn:hover { background: #667eea; color: white; }
         .delete-key-btn { background: transparent; border-color: #ef4444; color: #ef4444; }
@@ -343,6 +345,7 @@
         let keys = [];
         let sessionToken = null;
         let expandedKeys = new Set();
+        let revealedKeys = new Set();
 
         const authContainer = document.getElementById('authContainer');
         const adminPanel = document.getElementById('adminPanel');
@@ -360,6 +363,24 @@
                 authDesc.textContent = 'WebAuthn is not available. You need HTTPS or localhost.';
                 authBtn.style.display = 'none';
                 return;
+            }
+
+            // Try to restore session from localStorage
+            const storedToken = localStorage.getItem('adminSession');
+            if (storedToken) {
+                try {
+                    const res = await fetch('/api/admin/keys', {
+                        headers: { 'Authorization': `Bearer ${storedToken}` }
+                    });
+                    if (res.ok) {
+                        sessionToken = storedToken;
+                        showAdminPanel();
+                        return;
+                    }
+                } catch (err) {
+                    // Token invalid, continue to login screen
+                }
+                localStorage.removeItem('adminSession');
             }
 
             try {
@@ -410,6 +431,7 @@
                 const result = await verifyRes.json();
                 if (result.success) {
                     sessionToken = result.token;
+                    localStorage.setItem('adminSession', sessionToken);
                     showAdminPanel();
                 } else {
                     authError.textContent = result.error || 'Registration failed';
@@ -454,6 +476,7 @@
                 const result = await verifyRes.json();
                 if (result.success) {
                     sessionToken = result.token;
+                    localStorage.setItem('adminSession', sessionToken);
                     showAdminPanel();
                 } else {
                     authError.textContent = result.error || 'Login failed';
@@ -476,6 +499,7 @@
                     headers: { 'Authorization': `Bearer ${sessionToken}` }
                 });
                 if (res.status === 401) {
+                    localStorage.removeItem('adminSession');
                     location.reload();
                     return;
                 }
@@ -522,7 +546,7 @@
                             <div class="key-info">
                                 <div class="key-label">
                                     ${escapeHtml(k.label) || '(No label)'}
-                                    <span class="key-string">${k.key.slice(0, 8)}...</span>
+                                    <span class="key-string">${revealedKeys.has(k.key) ? k.key : '••••••••••••••••••••'}</span>
                                 </div>
                                 <div class="key-meta">${k.uploads.length} file${k.uploads.length !== 1 ? 's' : ''} &bull; Created ${formatDate(k.createdAt)}</div>
                             </div>
@@ -533,7 +557,8 @@
                                 <div class="quota-text">${formatBytes(k.usedBytes)} / ${formatBytes(k.quotaBytes)}</div>
                             </div>
                             <div class="key-actions" onclick="event.stopPropagation()">
-                                <button class="copy-key-btn" onclick="copyKey('${k.key}')">Copy Key</button>
+                                <button class="eye-btn" onclick="toggleReveal('${k.key}')" title="${revealedKeys.has(k.key) ? 'Hide' : 'Show'} key">${revealedKeys.has(k.key) ? '👁' : '👁‍🗨'}</button>
+                                <button class="copy-key-btn" onclick="copyKey('${k.key}')">Copy</button>
                                 <button class="delete-key-btn" onclick="deleteKey('${k.key}')">Delete</button>
                             </div>
                         </div>
@@ -569,6 +594,15 @@
                 expandedKeys.delete(key);
             } else {
                 expandedKeys.add(key);
+            }
+            renderKeys();
+        }
+
+        function toggleReveal(key) {
+            if (revealedKeys.has(key)) {
+                revealedKeys.delete(key);
+            } else {
+                revealedKeys.add(key);
             }
             renderKeys();
         }
@@ -661,6 +695,7 @@
 
         function logout() {
             sessionToken = null;
+            localStorage.removeItem('adminSession');
             adminPanel.classList.remove('active');
             authContainer.style.display = 'block';
             checkAuth();
