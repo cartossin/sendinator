@@ -561,12 +561,13 @@
         }
 
         // Pre-scan to count files and total size
-        async function prescanItems(itemsIterator) {
+        async function prescanItems(itemsIterator, onProgress) {
             const items = [];
             let totalSize = 0;
             let fileCount = 0;
             let dirCount = 0;
             let rootName = null;
+            let lastUpdate = 0;
 
             for await (const item of itemsIterator) {
                 items.push(item);
@@ -579,6 +580,12 @@
                 // Capture root folder name
                 if (!rootName) {
                     rootName = item.path.split('/')[0];
+                }
+                // Progress callback every 100ms
+                const now = Date.now();
+                if (onProgress && now - lastUpdate > 100) {
+                    lastUpdate = now;
+                    onProgress(fileCount, dirCount, totalSize);
                 }
             }
 
@@ -696,7 +703,9 @@
             let scanResult;
             try {
                 // Pre-scan to get file count and total size
-                scanResult = await prescanItems(itemsIterator);
+                scanResult = await prescanItems(itemsIterator, (files, dirs, size) => {
+                    status.textContent = `Scanning... ${files.toLocaleString()} files (${formatBytes(size)})`;
+                });
             } catch (err) {
                 status.className = 'status error';
                 status.textContent = 'Error scanning files: ' + err.message;
