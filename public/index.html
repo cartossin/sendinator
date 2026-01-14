@@ -739,6 +739,7 @@
 
             // Determine if this is a single file or archive
             const isSingleFile = fileCount === 1 && dirCount === 0 && !items[0].path.includes('/');
+            console.log(`Scan complete: ${fileCount} files, ${dirCount} dirs, ${formatBytes(totalSize)}, isSingleFile=${isSingleFile}`);
 
             if (isSingleFile) {
                 // Single file - use direct upload (existing behavior)
@@ -822,6 +823,7 @@
         }
 
         async function handleArchiveUpload(items, totalSize, fileCount, rootName, CHUNK_SIZE) {
+            console.log('handleArchiveUpload started', { totalSize, fileCount, rootName });
             // Update UI for archive upload
             fileName.textContent = rootName || 'Archive';
             fileSize.textContent = `${fileCount} files, ${formatBytes(totalSize)}`;
@@ -848,6 +850,7 @@
 
             const doUpload = async () => {
                 // Step 1: Create archive on server
+                console.log('Creating archive on server...');
                 const createRes = await fetch('/api/create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -867,10 +870,12 @@
                 }
 
                 const { id, url } = createData;
+                console.log('Archive created:', id, url);
                 shareLink.value = window.location.origin + url;
                 shareLinkContainer.style.display = 'block';
 
                 // Step 2: Create TAR stream and upload in chunks
+                console.log('Starting TAR stream upload...');
                 status.textContent = 'Uploading archive...';
                 await streamTarUpload(items, id, CHUNK_SIZE, totalSize);
 
