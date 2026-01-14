@@ -1057,6 +1057,47 @@ const server = http.createServer(async (req, res) => {
             return sendJson(res, 200, { keys, orphanedUploads });
         }
 
+        // PATCH /api/admin/keys/:key - update an upload key's quota
+        const patchKeyMatch = pathname.match(/^\/api\/admin\/keys\/(.+)$/);
+        if (method === 'PATCH' && patchKeyMatch) {
+            if (!verifySession(req)) {
+                return sendJson(res, 401, { error: 'Unauthorized' });
+            }
+
+            const key = patchKeyMatch[1];
+            const keyData = uploadKeys.get(key);
+            if (!keyData) {
+                return sendJson(res, 404, { error: 'Key not found' });
+            }
+
+            try {
+                const body = await readJsonBody(req);
+                const { quotaValue, quotaUnit } = body;
+
+                if (!quotaValue || quotaValue <= 0) {
+                    return sendJson(res, 400, { error: 'Invalid quota' });
+                }
+
+                // Convert to bytes based on unit (binary units)
+                const unitMultipliers = {
+                    'MiB': 1024 * 1024,
+                    'GiB': 1024 * 1024 * 1024,
+                    'TiB': 1024 * 1024 * 1024 * 1024
+                };
+                const multiplier = unitMultipliers[quotaUnit] || unitMultipliers['GiB'];
+                const quotaBytes = Math.round(quotaValue * multiplier);
+
+                keyData.quotaBytes = quotaBytes;
+                saveUploadKeys();
+
+                console.log(`Updated upload key quota: ${key.slice(0, 8)}... -> ${quotaValue} ${quotaUnit}`);
+                return sendJson(res, 200, { success: true, quotaBytes });
+
+            } catch (err) {
+                return sendJson(res, 500, { error: err.message });
+            }
+        }
+
         // DELETE /api/admin/keys/:key - delete an upload key
         const deleteKeyMatch = pathname.match(/^\/api\/admin\/keys\/(.+)$/);
         if (method === 'DELETE' && deleteKeyMatch) {
