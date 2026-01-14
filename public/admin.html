@@ -668,7 +668,7 @@
 
             keysList.innerHTML = header + keys.map(k => {
                 const usedPercent = k.quotaBytes > 0 ? (k.usedBytes / k.quotaBytes * 100) : 0;
-                const quotaClass = usedPercent > 90 ? 'danger' : usedPercent > 70 ? 'warning' : '';
+                const quotaClass = usedPercent >= 100 ? 'danger' : usedPercent > 90 ? 'warning' : '';
                 const isExpanded = expandedKeys.has(k.key);
 
                 return `
