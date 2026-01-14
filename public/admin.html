@@ -256,6 +256,7 @@
             <h1>Sendinator Admin</h1>
             <div class="header-right">
                 <a href="/" class="home-link">Back to Upload</a>
+                <a href="#" class="home-link" onclick="logout(); return false;">Logout</a>
             </div>
         </div>
 
@@ -569,9 +570,19 @@
 
         function copyLink(id) {
             const url = `${window.location.origin}/download/${id}`;
+            const btn = event.target;
             navigator.clipboard.writeText(url).then(() => {
-                // Brief feedback could be added here
+                const orig = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = orig, 1500);
             });
+        }
+
+        function logout() {
+            sessionToken = null;
+            adminPanel.classList.remove('active');
+            authContainer.style.display = 'block';
+            checkAuth();
         }
 
         // Event listeners
