@@ -308,8 +308,15 @@
                     <input type="text" id="keyLabel" placeholder="e.g., John's key">
                 </div>
                 <div class="form-group">
-                    <label>Quota (GB)</label>
-                    <input type="number" id="keyQuota" value="10" min="1" step="1" style="width: 100px;">
+                    <label>Quota</label>
+                    <div style="display: flex; gap: 6px;">
+                        <input type="number" id="keyQuota" value="10" min="1" step="1" style="width: 80px;">
+                        <select id="keyQuotaUnit" style="padding: 10px; background: #1a1a2e; border: 1px solid #444; border-radius: 8px; color: #fff;">
+                            <option value="MB">MB</option>
+                            <option value="GB" selected>GB</option>
+                            <option value="TB">TB</option>
+                        </select>
+                    </div>
                 </div>
                 <button class="create-btn" onclick="createKey()">Create Key</button>
             </div>
@@ -568,9 +575,10 @@
 
         async function createKey() {
             const label = document.getElementById('keyLabel').value;
-            const quotaGB = parseFloat(document.getElementById('keyQuota').value);
+            const quotaValue = parseFloat(document.getElementById('keyQuota').value);
+            const quotaUnit = document.getElementById('keyQuotaUnit').value;
 
-            if (!quotaGB || quotaGB <= 0) {
+            if (!quotaValue || quotaValue <= 0) {
                 alert('Please enter a valid quota');
                 return;
             }
@@ -582,7 +590,7 @@
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${sessionToken}`
                     },
-                    body: JSON.stringify({ label, quotaGB })
+                    body: JSON.stringify({ label, quotaValue, quotaUnit })
                 });
 
                 const data = await res.json();

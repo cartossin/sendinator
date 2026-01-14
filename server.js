@@ -881,16 +881,25 @@ const server = http.createServer(async (req, res) => {
 
             try {
                 const body = await readJsonBody(req);
-                const { quotaGB, label } = body;
+                const { quotaValue, quotaUnit, label } = body;
 
-                if (!quotaGB || quotaGB <= 0) {
+                if (!quotaValue || quotaValue <= 0) {
                     return sendJson(res, 400, { error: 'Invalid quota' });
                 }
+
+                // Convert to bytes based on unit
+                const unitMultipliers = {
+                    'MB': 1024 * 1024,
+                    'GB': 1024 * 1024 * 1024,
+                    'TB': 1024 * 1024 * 1024 * 1024
+                };
+                const multiplier = unitMultipliers[quotaUnit] || unitMultipliers['GB'];
+                const quotaBytes = Math.round(quotaValue * multiplier);
 
                 const key = generateUploadKey();
                 const keyData = {
                     label: label || '',
-                    quotaBytes: Math.round(quotaGB * 1024 * 1024 * 1024),
+                    quotaBytes,
                     usedBytes: 0,
                     createdAt: Date.now(),
                     uploads: []
@@ -899,7 +908,7 @@ const server = http.createServer(async (req, res) => {
                 uploadKeys.set(key, keyData);
                 saveUploadKeys();
 
-                console.log(`Created upload key: ${key} (${quotaGB}GB, label: "${label || ''}")`);
+                console.log(`Created upload key: ${key} (${quotaValue}${quotaUnit || 'GB'}, label: "${label || ''}")`);
                 return sendJson(res, 200, { key, ...keyData });
 
             } catch (err) {
