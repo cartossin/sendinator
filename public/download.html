@@ -322,6 +322,7 @@
             let writtenBytes = 0;
             let pipelineError = null;
             let lastProgressTime = Date.now();  // For watchdog
+            let quotaExhausted = false;  // Track quota state for status display
 
             // Speed tracking
             const chunkCompletions = [];
@@ -402,6 +403,7 @@
                         const data = await downloadChunk(chunkIndex);
 
                         // Clear error status on successful download
+                        quotaExhausted = false;
                         if (status.className.includes('error')) {
                             status.className = 'status downloading';
                         }
@@ -443,6 +445,7 @@
                             await new Promise(r => setTimeout(r, 500));
                         } else if (err.isQuotaError) {
                             // Quota exhausted - show clear message and wait for admin to increase
+                            quotaExhausted = true;
                             status.className = 'status error';
                             status.textContent = 'Quota exhausted - waiting for more quota...';
                             // Retry less frequently to not spam server
@@ -626,6 +629,12 @@
                     const verified = chunkState.filter(s => s === 'verified').length;
                     const done = chunkState.filter(s => s === 'done').length;
                     const pending = chunkState.filter(s => s === 'pending').length;
+
+                    // Don't overwrite quota error message
+                    if (quotaExhausted) {
+                        await new Promise(r => setTimeout(r, 500));
+                        continue;
+                    }
 
                     const remaining = fileInfo.totalChunks - nextChunkToWrite;
                     if (remaining <= 10 && remaining > 0) {
