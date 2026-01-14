@@ -846,8 +846,8 @@
                 status.textContent = 'Download complete!';
                 progressFill.style.width = '100%';
                 progressPercent.textContent = '100%';
-                downloadBtn.disabled = false;
-                downloadBtn.textContent = 'Download Again';
+                downloadBtn.disabled = true;
+                downloadBtn.textContent = 'Completed';
 
             } catch (err) {
                 clearInterval(speedInterval);
@@ -1084,8 +1084,8 @@
                     status.textContent = `Extraction complete! ${filesExtracted} files extracted.`;
                     progressFill.style.width = '100%';
                     progressPercent.textContent = '100%';
-                    downloadBtn.disabled = false;
-                    downloadBtn.textContent = 'Extract Again';
+                    downloadBtn.disabled = true;
+                    downloadBtn.textContent = 'Completed';
 
                 } catch (err) {
                     status.className = 'status error';
