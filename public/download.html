@@ -441,6 +441,12 @@
                         if (err.is404) {
                             // Chunk not uploaded yet - wait for upload to catch up
                             await new Promise(r => setTimeout(r, 500));
+                        } else if (err.isQuotaError) {
+                            // Quota exhausted - show clear message and wait for admin to increase
+                            status.className = 'status error';
+                            status.textContent = 'Quota exhausted - waiting for more quota...';
+                            // Retry less frequently to not spam server
+                            await new Promise(r => setTimeout(r, 5000));
                         } else if (err.isRetryable || err.message?.includes('fetch')) {
                             // Server error or network error - show status and retry
                             status.className = 'status error';
@@ -723,6 +729,14 @@
                 if (res.status === 404) {
                     throw { is404: true, message: `Chunk ${index} not yet uploaded` };
                 }
+                if (res.status === 403) {
+                    // Parse error to check if it's quota exhaustion
+                    const err = await res.json().catch(() => ({}));
+                    if (err.error?.includes('quota')) {
+                        throw { isQuotaError: true, message: err.error };
+                    }
+                    throw { isRetryable: true, message: err.error || 'Access denied' };
+                }
                 if (!res.ok) {
                     throw { isRetryable: true, message: `HTTP ${res.status}` };
                 }
@@ -730,7 +744,7 @@
             } catch (err) {
                 clearTimeout(timeout);
                 // Re-throw our custom error objects as-is
-                if (err.is404 || err.isRetryable) throw err;
+                if (err.is404 || err.isRetryable || err.isQuotaError) throw err;
                 // Wrap other errors (network failures, timeouts)
                 if (err.name === 'AbortError') {
                     throw { isRetryable: true, message: 'Request timeout' };
