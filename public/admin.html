@@ -763,6 +763,7 @@
         }
 
         function editQuota(key) {
+            stopAutoRefresh();  // Pause refresh while editing
             editingQuotaKey = key;
             renderKeys();
         }
@@ -770,6 +771,7 @@
         function cancelEditQuota() {
             editingQuotaKey = null;
             renderKeys();
+            startAutoRefresh();  // Resume refresh
         }
 
         async function saveQuota(key) {
@@ -797,6 +799,7 @@
                 if (res.ok) {
                     editingQuotaKey = null;
                     loadKeys();
+                    startAutoRefresh();  // Resume refresh
                 } else {
                     const data = await res.json();
                     alert(data.error || 'Failed to update quota');
