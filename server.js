@@ -429,7 +429,7 @@ const server = http.createServer(async (req, res) => {
             }
 
             const body = await readJsonBody(req);
-            const { filename, size, totalChunks } = body;
+            const { filename, size, totalChunks, type, fileCount, rootName } = body;
 
             if (!filename || !size || !totalChunks) {
                 return sendJson(res, 400, { error: 'Missing required fields' });
@@ -457,6 +457,13 @@ const server = http.createServer(async (req, res) => {
                 uploadKey: keySession.key  // Track which key uploaded this
             };
 
+            // Optional archive metadata
+            if (type === 'archive') {
+                fileInfo.type = 'archive';
+                fileInfo.fileCount = fileCount || 0;
+                fileInfo.rootName = rootName || '';
+            }
+
             files.set(id, fileInfo);
             saveMetadata(id, fileInfo);
 
@@ -467,7 +474,8 @@ const server = http.createServer(async (req, res) => {
                 saveUploadKeys();
             }
 
-            console.log(`Created file: ${id} - ${filename} (${formatBytes(size)}, ${totalChunks} chunks) [key: ${keySession.key.slice(0, 8)}...]`);
+            const typeLabel = type === 'archive' ? ` [archive: ${fileCount} files]` : '';
+            console.log(`Created file: ${id} - ${filename} (${formatBytes(size)}, ${totalChunks} chunks)${typeLabel} [key: ${keySession.key.slice(0, 8)}...]`);
             return sendJson(res, 200, { id, url: `/download/${id}` });
         }
 
@@ -483,8 +491,23 @@ const server = http.createServer(async (req, res) => {
                 return sendJson(res, 404, { error: 'File not found' });
             }
 
-            if (chunkIndex < 0 || chunkIndex >= fileInfo.totalChunks) {
+            if (chunkIndex < 0) {
                 return sendJson(res, 400, { error: 'Invalid chunk index' });
+            }
+
+            // For archives, allow chunks beyond initial estimate (TAR size is approximate)
+            // Dynamically expand arrays if needed
+            if (chunkIndex >= fileInfo.totalChunks) {
+                if (fileInfo.type === 'archive') {
+                    // Expand to accommodate this chunk
+                    const newSize = chunkIndex + 1;
+                    while (fileInfo.chunkHashes.length < newSize) {
+                        fileInfo.chunkHashes.push(null);
+                    }
+                    fileInfo.totalChunks = newSize;
+                } else {
+                    return sendJson(res, 400, { error: 'Invalid chunk index' });
+                }
             }
 
             const chunks = [];
@@ -552,6 +575,56 @@ const server = http.createServer(async (req, res) => {
             return; // Response sent in event handlers
         }
 
+        // POST /api/finalize/:id - finalize archive upload with actual chunk count
+        const finalizeMatch = pathname.match(/^\/api\/finalize\/([a-f0-9]+)$/);
+        if (method === 'POST' && finalizeMatch) {
+            const id = finalizeMatch[1];
+            const fileInfo = files.get(id);
+            if (!fileInfo) {
+                return sendJson(res, 404, { error: 'File not found' });
+            }
+
+            try {
+                const body = await readJsonBody(req);
+                const { actualChunks } = body;
+
+                if (actualChunks && actualChunks !== fileInfo.totalChunks) {
+                    // Update total chunks to actual count
+                    const oldTotal = fileInfo.totalChunks;
+                    fileInfo.totalChunks = actualChunks;
+
+                    // Adjust chunkHashes array
+                    if (actualChunks < oldTotal) {
+                        fileInfo.chunkHashes = fileInfo.chunkHashes.slice(0, actualChunks);
+                    }
+                    // If actualChunks > oldTotal, array was already expanded during upload
+
+                    // Calculate actual size from chunks on disk
+                    const fileDir = path.join(UPLOAD_DIR, id);
+                    let actualSize = 0;
+                    for (let i = 0; i < actualChunks; i++) {
+                        const chunkPath = path.join(fileDir, `chunk_${i}`);
+                        try {
+                            const stat = fs.statSync(chunkPath);
+                            actualSize += stat.size;
+                        } catch (e) {
+                            // Chunk missing - leave size as estimated
+                            actualSize = fileInfo.size;
+                            break;
+                        }
+                    }
+                    fileInfo.size = actualSize;
+
+                    saveMetadata(id, fileInfo);
+                    console.log(`Finalized ${id}: ${oldTotal} -> ${actualChunks} chunks, size: ${formatBytes(actualSize)}`);
+                }
+
+                return sendJson(res, 200, { success: true });
+            } catch (err) {
+                return sendJson(res, 500, { error: err.message });
+            }
+        }
+
         // GET /api/info/:id
         const infoMatch = pathname.match(/^\/api\/info\/([a-f0-9]+)$/);
         if (method === 'GET' && infoMatch) {
@@ -579,7 +652,7 @@ const server = http.createServer(async (req, res) => {
                 }
             }
 
-            return sendJson(res, 200, {
+            const response = {
                 id: fileInfo.id,
                 filename: fileInfo.filename,
                 size: fileInfo.size,
@@ -591,7 +664,16 @@ const server = http.createServer(async (req, res) => {
                 targetBufferMemory: TARGET_BUFFER_MEMORY,
                 downloadable,
                 downloadError
-            });
+            };
+
+            // Include archive metadata if present
+            if (fileInfo.type === 'archive') {
+                response.type = 'archive';
+                response.fileCount = fileInfo.fileCount;
+                response.rootName = fileInfo.rootName;
+            }
+
+            return sendJson(res, 200, response);
         }
 
         // GET /api/chunk/:id/:index
@@ -739,7 +821,8 @@ const server = http.createServer(async (req, res) => {
                 '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
                 '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
                 '.pdf': 'application/pdf', '.txt': 'text/plain', '.html': 'text/html',
-                '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json'
+                '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json',
+                '.tar': 'application/x-tar', '.zip': 'application/zip', '.gz': 'application/gzip'
             };
             const contentType = mimeTypes[ext] || 'application/octet-stream';
 

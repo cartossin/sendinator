@@ -281,9 +281,14 @@
 
     <div class="dropzone" id="dropzone" style="display: none;">
         <div class="dropzone-icon">📁</div>
-        <div class="dropzone-text">Drag & drop a file here</div>
+        <div class="dropzone-text">Drag & drop files or folders here</div>
         <div class="dropzone-subtext">or click to select</div>
-        <input type="file" id="fileInput">
+        <input type="file" id="fileInput" multiple>
+        <input type="file" id="folderInput" webkitdirectory style="display: none;">
+        <div class="dropzone-buttons" style="margin-top: 15px; display: flex; gap: 10px;">
+            <button class="select-files-btn" id="selectFilesBtn" style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">Select Files</button>
+            <button class="select-folder-btn" id="selectFolderBtn" style="padding: 8px 16px; background: transparent; border: 2px solid #667eea; color: #667eea; border-radius: 6px; cursor: pointer;">Select Folder</button>
+        </div>
     </div>
 
     <div class="upload-container" id="uploadContainer">
@@ -321,8 +326,9 @@
     </div>
 
     <a href="/admin" class="admin-link">Admin</a>
-    <div class="version">v3.2.0</div>
+    <div class="version">v3.3.0</div>
 
+    <script src="tar.js"></script>
     <script>
         const PARALLEL_UPLOADS = 4;
         let serverConfig = null;  // Fetched from server
@@ -343,6 +349,9 @@
         // Upload elements
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('fileInput');
+        const folderInput = document.getElementById('folderInput');
+        const selectFilesBtn = document.getElementById('selectFilesBtn');
+        const selectFolderBtn = document.getElementById('selectFolderBtn');
         const uploadContainer = document.getElementById('uploadContainer');
         const fileName = document.getElementById('fileName');
         const fileSize = document.getElementById('fileSize');
@@ -454,23 +463,172 @@
             showLoginUI();
         });
 
-        // Drag and drop
-        dropzone.addEventListener('click', () => fileInput.click());
-        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
-        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
-        dropzone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropzone.classList.remove('dragover');
-            if (e.dataTransfer.files.length) {
-                // Check if it's a directory using webkitGetAsEntry
-                const item = e.dataTransfer.items?.[0];
-                const entry = item?.webkitGetAsEntry?.();
-                const isDirectory = entry?.isDirectory || false;
-                handleFile(e.dataTransfer.files[0], isDirectory);
+        // ==================== FOLDER SCANNER ====================
+
+        // Read all entries from a directory (handles 100-item limit)
+        async function readAllDirectoryEntries(dirReader) {
+            const entries = [];
+            let batch;
+            do {
+                batch = await new Promise((resolve, reject) => {
+                    dirReader.readEntries(resolve, reject);
+                });
+                entries.push(...batch);
+            } while (batch.length > 0);
+            return entries;
+        }
+
+        // Scan a FileSystemEntry recursively, yielding {path, file, isDirectory}
+        async function* scanEntry(entry, basePath = '') {
+            const path = basePath ? `${basePath}/${entry.name}` : entry.name;
+
+            if (entry.isDirectory) {
+                // Yield the directory itself (for empty folder support)
+                yield { path: path + '/', file: null, isDirectory: true };
+
+                // Recursively scan contents
+                const dirReader = entry.createReader();
+                const entries = await readAllDirectoryEntries(dirReader);
+                for (const child of entries) {
+                    yield* scanEntry(child, path);
+                }
+            } else {
+                // Get file from entry
+                const file = await new Promise((resolve, reject) => {
+                    entry.file(resolve, reject);
+                });
+                yield { path, file, isDirectory: false };
+            }
+        }
+
+        // Scan dropped items (handles mix of files and folders)
+        async function* scanDroppedItems(dataTransfer) {
+            const items = [...dataTransfer.items];
+            const entries = items
+                .map(item => item.webkitGetAsEntry?.())
+                .filter(e => e);
+
+            if (entries.length === 0) {
+                // Fallback for browsers without webkitGetAsEntry
+                for (const file of dataTransfer.files) {
+                    yield { path: file.name, file, isDirectory: false };
+                }
+                return;
+            }
+
+            // Check if we have a single folder or multiple items
+            const hasMultiple = entries.length > 1;
+            const hasMixedTypes = entries.some(e => e.isDirectory) && entries.some(e => e.isFile);
+            const needsWrapper = hasMultiple || hasMixedTypes;
+
+            if (needsWrapper) {
+                // Wrap multiple items in a virtual folder
+                const wrapperName = `upload-${new Date().toISOString().split('T')[0]}`;
+                for (const entry of entries) {
+                    yield* scanEntry(entry, wrapperName);
+                }
+            } else if (entries.length === 1 && entries[0].isDirectory) {
+                // Single folder - scan it directly
+                yield* scanEntry(entries[0]);
+            } else {
+                // Single file
+                for (const entry of entries) {
+                    yield* scanEntry(entry);
+                }
+            }
+        }
+
+        // Scan files from file input (including webkitdirectory)
+        async function* scanFileInput(files, isFolder = false) {
+            if (files.length === 0) return;
+
+            if (isFolder) {
+                // Files from webkitdirectory have webkitRelativePath
+                for (const file of files) {
+                    const path = file.webkitRelativePath || file.name;
+                    yield { path, file, isDirectory: false };
+                }
+            } else if (files.length === 1) {
+                // Single file
+                yield { path: files[0].name, file: files[0], isDirectory: false };
+            } else {
+                // Multiple files - wrap in virtual folder
+                const wrapperName = `upload-${new Date().toISOString().split('T')[0]}`;
+                for (const file of files) {
+                    yield { path: `${wrapperName}/${file.name}`, file, isDirectory: false };
+                }
+            }
+        }
+
+        // Pre-scan to count files and total size
+        async function prescanItems(itemsIterator) {
+            const items = [];
+            let totalSize = 0;
+            let fileCount = 0;
+            let dirCount = 0;
+            let rootName = null;
+
+            for await (const item of itemsIterator) {
+                items.push(item);
+                if (item.isDirectory) {
+                    dirCount++;
+                } else {
+                    fileCount++;
+                    totalSize += item.file.size;
+                }
+                // Capture root folder name
+                if (!rootName) {
+                    rootName = item.path.split('/')[0];
+                }
+            }
+
+            return { items, totalSize, fileCount, dirCount, rootName };
+        }
+
+        // ==================== EVENT HANDLERS ====================
+
+        // Button click handlers
+        selectFilesBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fileInput.click();
+        });
+        selectFolderBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            folderInput.click();
+        });
+
+        // Prevent dropzone click from triggering file input
+        dropzone.addEventListener('click', (e) => {
+            // Only trigger if clicking on dropzone itself, not buttons
+            if (e.target === dropzone || e.target.classList.contains('dropzone-icon') ||
+                e.target.classList.contains('dropzone-text') || e.target.classList.contains('dropzone-subtext')) {
+                fileInput.click();
             }
         });
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) handleFile(e.target.files[0]);
+
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+        dropzone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            if (e.dataTransfer.items.length) {
+                const items = scanDroppedItems(e.dataTransfer);
+                await handleItems(items);
+            }
+        });
+
+        fileInput.addEventListener('change', async (e) => {
+            if (e.target.files.length) {
+                const items = scanFileInput(e.target.files, false);
+                await handleItems(items);
+            }
+        });
+
+        folderInput.addEventListener('change', async (e) => {
+            if (e.target.files.length) {
+                const items = scanFileInput(e.target.files, true);
+                await handleItems(items);
+            }
         });
 
         copyBtn.addEventListener('click', () => {
@@ -490,6 +648,7 @@
             dropzone.style.display = 'flex';
             shareLinkContainer.style.display = 'none';
             fileInput.value = '';
+            folderInput.value = '';
             // Refresh session status to get updated quota
             await checkSession();
         });
@@ -513,23 +672,7 @@
         }
         init();
 
-        async function handleFile(file, isDirectory = false) {
-            // Check if folder was dropped
-            if (isDirectory) {
-                alert('Folder uploads are not yet supported. Please select a single file.');
-                return;
-            }
-
-            // Validate file object
-            if (!file || !file.name || typeof file.size !== 'number') {
-                alert('Invalid file. Please try again.');
-                return;
-            }
-            if (file.size === 0) {
-                alert('Cannot upload empty files.');
-                return;
-            }
-
+        async function handleItems(itemsIterator) {
             // Refresh session to get latest quota (in case it was updated in another tab)
             await checkSession();
 
@@ -538,8 +681,64 @@
             }
             const CHUNK_SIZE = serverConfig.chunkSize;
 
+            // Show upload UI with scanning state
             dropzone.style.display = 'none';
             uploadContainer.classList.add('active');
+            fileName.textContent = 'Scanning...';
+            fileSize.textContent = '';
+            progressFill.style.width = '0%';
+            progressPercent.textContent = '';
+            progressSpeed.textContent = '';
+            status.className = 'status hashing';
+            status.textContent = 'Scanning files...';
+            chunkInfo.textContent = '';
+
+            let scanResult;
+            try {
+                // Pre-scan to get file count and total size
+                scanResult = await prescanItems(itemsIterator);
+            } catch (err) {
+                status.className = 'status error';
+                status.textContent = 'Error scanning files: ' + err.message;
+                dropzone.style.display = 'flex';
+                uploadContainer.classList.remove('active');
+                return;
+            }
+
+            const { items, totalSize, fileCount, dirCount, rootName } = scanResult;
+
+            if (fileCount === 0) {
+                status.className = 'status error';
+                status.textContent = 'No files found to upload.';
+                dropzone.style.display = 'flex';
+                uploadContainer.classList.remove('active');
+                return;
+            }
+
+            // Check quota
+            const remaining = currentSession.quotaBytes - currentSession.usedBytes;
+            if (totalSize > remaining) {
+                status.className = 'status error';
+                status.textContent = `Not enough quota. Need ${formatBytes(totalSize)}, have ${formatBytes(remaining)}.`;
+                dropzone.style.display = 'flex';
+                uploadContainer.classList.remove('active');
+                return;
+            }
+
+            // Determine if this is a single file or archive
+            const isSingleFile = fileCount === 1 && dirCount === 0 && !items[0].path.includes('/');
+
+            if (isSingleFile) {
+                // Single file - use direct upload (existing behavior)
+                const file = items[0].file;
+                await handleSingleFile(file, CHUNK_SIZE);
+            } else {
+                // Multiple files/folders - use TAR streaming
+                await handleArchiveUpload(items, totalSize, fileCount, rootName, CHUNK_SIZE);
+            }
+        }
+
+        async function handleSingleFile(file, CHUNK_SIZE) {
             fileName.textContent = file.name;
             fileSize.textContent = formatBytes(file.size);
             progressFill.style.width = '0%';
@@ -607,6 +806,210 @@
                 window.removeEventListener('beforeunload', preventClose);
                 // Refresh quota display
                 await checkSession();
+            }
+        }
+
+        async function handleArchiveUpload(items, totalSize, fileCount, rootName, CHUNK_SIZE) {
+            // Update UI for archive upload
+            fileName.textContent = rootName || 'Archive';
+            fileSize.textContent = `${fileCount} files, ${formatBytes(totalSize)}`;
+            progressFill.style.width = '0%';
+            progressPercent.textContent = '0%';
+            progressSpeed.textContent = '';
+            status.className = 'status uploading';
+            status.textContent = 'Creating archive...';
+
+            // Estimate TAR size (headers + padding)
+            const headerOverhead = items.length * 512; // 512 bytes per header
+            const paddingEstimate = items.length * 256; // Average padding
+            const estimatedTarSize = totalSize + headerOverhead + paddingEstimate + 1024; // +1024 for end marker
+            const totalChunks = Math.ceil(estimatedTarSize / CHUNK_SIZE);
+
+            chunkInfo.textContent = `~${totalChunks} chunks × ${formatBytes(CHUNK_SIZE)}`;
+
+            // Prevent accidental tab close during upload
+            const preventClose = (e) => {
+                e.preventDefault();
+                e.returnValue = '';
+            };
+            window.addEventListener('beforeunload', preventClose);
+
+            const doUpload = async () => {
+                // Step 1: Create archive on server
+                const createRes = await fetch('/api/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        filename: rootName + '.tar',
+                        size: estimatedTarSize,
+                        totalChunks,
+                        type: 'archive',
+                        fileCount,
+                        rootName
+                    })
+                });
+
+                const createData = await createRes.json();
+                if (!createRes.ok) {
+                    throw new Error(createData.error || 'Failed to create upload');
+                }
+
+                const { id, url } = createData;
+                shareLink.value = window.location.origin + url;
+                shareLinkContainer.style.display = 'block';
+
+                // Step 2: Create TAR stream and upload in chunks
+                status.textContent = 'Uploading archive...';
+                await streamTarUpload(items, id, CHUNK_SIZE, totalSize);
+
+                status.className = 'status complete';
+                status.textContent = 'Upload complete! Share the link.';
+                progressFill.style.width = '100%';
+                progressPercent.textContent = '100%';
+            };
+
+            try {
+                // Use Web Lock API to prevent background tab throttling
+                if (navigator.locks) {
+                    await navigator.locks.request('sendinator-upload', doUpload);
+                } else {
+                    await doUpload();
+                }
+            } catch (err) {
+                console.error('Upload error:', err);
+                status.className = 'status error';
+                status.textContent = 'Error: ' + err.message;
+                dropzone.style.display = 'flex';
+            } finally {
+                window.removeEventListener('beforeunload', preventClose);
+                await checkSession();
+            }
+        }
+
+        async function streamTarUpload(items, id, CHUNK_SIZE, totalDataSize) {
+            // Create async iterator from items array for TAR stream
+            async function* itemIterator() {
+                for (const item of items) {
+                    yield item;
+                }
+            }
+
+            // Create TAR stream
+            const tarStream = window.TarStream.createTarStream(itemIterator());
+            const reader = tarStream.getReader();
+
+            let buffer = new Uint8Array(0);
+            let chunkIndex = 0;
+            let totalBytesProcessed = 0;
+            const startTime = Date.now();
+
+            // Helper to append to buffer
+            function appendToBuffer(data) {
+                const newBuffer = new Uint8Array(buffer.length + data.length);
+                newBuffer.set(buffer);
+                newBuffer.set(data, buffer.length);
+                buffer = newBuffer;
+            }
+
+            // Upload chunks as they become available
+            const uploadPromises = [];
+
+            while (true) {
+                const { value, done } = await reader.read();
+
+                if (value) {
+                    appendToBuffer(value);
+                    totalBytesProcessed += value.length;
+                }
+
+                // Upload complete chunks
+                while (buffer.length >= CHUNK_SIZE) {
+                    const chunk = buffer.slice(0, CHUNK_SIZE);
+                    buffer = buffer.slice(CHUNK_SIZE);
+
+                    const currentIndex = chunkIndex++;
+                    const uploadPromise = uploadTarChunk(id, currentIndex, chunk).then(() => {
+                        // Update progress based on data processed
+                        const progress = Math.min(100, (totalBytesProcessed / (totalDataSize * 1.1)) * 100);
+                        progressFill.style.width = progress.toFixed(1) + '%';
+                        progressPercent.textContent = progress.toFixed(0) + '%';
+
+                        // Calculate speed
+                        const elapsed = (Date.now() - startTime) / 1000;
+                        if (elapsed > 0) {
+                            const speed = totalBytesProcessed / elapsed;
+                            progressSpeed.textContent = formatBytes(speed) + '/s';
+                        }
+                    });
+                    uploadPromises.push(uploadPromise);
+
+                    // Limit concurrent uploads
+                    if (uploadPromises.length >= PARALLEL_UPLOADS) {
+                        await Promise.race(uploadPromises);
+                        // Remove completed promises
+                        for (let i = uploadPromises.length - 1; i >= 0; i--) {
+                            const state = await Promise.race([uploadPromises[i], Promise.resolve('pending')]);
+                            if (state !== 'pending') uploadPromises.splice(i, 1);
+                        }
+                    }
+                }
+
+                if (done) break;
+            }
+
+            // Upload final partial chunk if any
+            if (buffer.length > 0) {
+                const currentIndex = chunkIndex++;
+                uploadPromises.push(uploadTarChunk(id, currentIndex, buffer));
+            }
+
+            // Wait for all uploads to complete
+            await Promise.all(uploadPromises);
+
+            // Update server with actual chunk count
+            const finalizeRes = await fetch(`/api/finalize/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ actualChunks: chunkIndex })
+            });
+            if (!finalizeRes.ok) {
+                console.warn('Finalize failed:', await finalizeRes.text());
+            }
+        }
+
+        async function uploadTarChunk(id, index, chunk) {
+            // Hash the chunk
+            const hashBuffer = await crypto.subtle.digest('SHA-256', chunk);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+            // Upload with retries
+            let attempt = 0;
+            while (true) {
+                try {
+                    const res = await fetch(`/api/chunk/${id}/${index}`, {
+                        method: 'POST',
+                        headers: { 'X-Chunk-Hash': hash },
+                        body: chunk
+                    });
+
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.error || 'Upload failed');
+                    }
+
+                    if (status.textContent.includes('Connection lost')) {
+                        status.textContent = 'Uploading archive...';
+                        status.className = 'status uploading';
+                    }
+                    return;
+                } catch (err) {
+                    attempt++;
+                    const waitTime = Math.min(attempt * 1000, 5000);
+                    status.textContent = `Connection lost - retrying in ${waitTime/1000}s...`;
+                    status.className = 'status error';
+                    await new Promise(r => setTimeout(r, waitTime));
+                }
             }
         }
 

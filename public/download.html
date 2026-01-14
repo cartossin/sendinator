@@ -152,6 +152,7 @@
         }
         .home-link:hover { text-decoration: underline; }
         .version { position: fixed; bottom: 10px; right: 10px; color: #444; font-size: 0.75em; }
+        .archive-info { color: #667eea; font-size: 0.85em; margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -160,10 +161,11 @@
 
     <div class="download-card" id="downloadCard">
         <div class="file-info">
-            <div class="file-icon">📄</div>
+            <div class="file-icon" id="fileIcon">📄</div>
             <div class="file-details">
                 <h2 id="fileName">Loading...</h2>
                 <div class="file-size" id="fileSize">--</div>
+                <div class="archive-info" id="archiveInfo" style="display: none;"></div>
                 <div class="upload-progress" id="uploadProgress"></div>
             </div>
         </div>
@@ -228,8 +230,9 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v3.2.0</div>
+    <div class="version">v3.3.0</div>
 
+    <script src="tar.js"></script>
     <script>
         // Pipeline configuration
         const PARALLEL_DOWNLOADS = 6;
@@ -239,11 +242,14 @@
         const fileId = window.location.pathname.split('/').pop();
         let fileInfo = null;
         const supportsProgressiveDownload = !!window.showSaveFilePicker;
+        const supportsDirectoryPicker = !!window.showDirectoryPicker;
 
         const downloadCard = document.getElementById('downloadCard');
         const notFound = document.getElementById('notFound');
+        const fileIcon = document.getElementById('fileIcon');
         const fileName = document.getElementById('fileName');
         const fileSize = document.getElementById('fileSize');
+        const archiveInfo = document.getElementById('archiveInfo');
         const uploadProgress = document.getElementById('uploadProgress');
         const tagline = document.getElementById('tagline');
         const downloadBtn = document.getElementById('downloadBtn');
@@ -267,15 +273,26 @@
                 }
 
                 fileInfo = await res.json();
-                fileName.textContent = fileInfo.filename;
-                fileSize.textContent = formatBytes(fileInfo.size);
+
+                // Handle archive display
+                const isArchive = fileInfo.type === 'archive';
+                if (isArchive) {
+                    fileIcon.textContent = '📁';
+                    fileName.textContent = fileInfo.rootName || 'Archive';
+                    fileSize.textContent = formatBytes(fileInfo.size);
+                    archiveInfo.textContent = `${fileInfo.fileCount} files`;
+                    archiveInfo.style.display = 'block';
+                } else {
+                    fileName.textContent = fileInfo.filename;
+                    fileSize.textContent = formatBytes(fileInfo.size);
+                }
                 chunkInfo.textContent = `${fileInfo.totalChunks} chunks × ${formatBytes(fileInfo.chunkSize)}`;
 
                 // Show upload progress
                 if (fileInfo.complete) {
                     uploadProgress.textContent = 'Upload complete';
                     uploadProgress.className = 'upload-progress complete';
-                    tagline.textContent = 'Your file is ready';
+                    tagline.textContent = isArchive ? 'Your folder is ready' : 'Your file is ready';
                     if (refreshInterval) {
                         clearInterval(refreshInterval);
                         refreshInterval = null;
@@ -284,7 +301,7 @@
                     const pct = (fileInfo.chunksReceived / fileInfo.totalChunks * 100).toFixed(0);
                     uploadProgress.textContent = `Uploading: ${fileInfo.chunksReceived}/${fileInfo.totalChunks} chunks (${pct}%)`;
                     uploadProgress.className = 'upload-progress';
-                    tagline.textContent = 'File upload in progress';
+                    tagline.textContent = isArchive ? 'Folder upload in progress' : 'File upload in progress';
                     // Auto-refresh while upload is in progress
                     if (!refreshInterval) {
                         refreshInterval = setInterval(loadFileInfo, 2000);
@@ -300,8 +317,33 @@
                     return;
                 }
 
-                // Handle based on browser support and file completeness
-                if (supportsProgressiveDownload) {
+                // Handle based on browser support, file type, and completeness
+                if (isArchive) {
+                    // Archive handling
+                    if (supportsDirectoryPicker) {
+                        // Chrome/Edge - can extract to folder
+                        downloadBtn.disabled = false;
+                        if (fileInfo.complete) {
+                            downloadBtn.textContent = 'Extract to Folder';
+                            status.className = 'status complete';
+                            status.textContent = 'Ready to extract';
+                        } else {
+                            downloadBtn.textContent = 'Start Extraction';
+                            status.className = 'status waiting';
+                            status.textContent = 'You can start extracting now while upload continues';
+                        }
+                    } else {
+                        // Safari/Firefox - point to direct TAR download
+                        downloadBtn.disabled = true;
+                        downloadBtn.textContent = 'Extract to Folder';
+                        status.className = 'status warning';
+                        if (fileInfo.complete) {
+                            status.innerHTML = 'Folder extraction requires Chrome/Edge. Download the .tar file below and extract locally.';
+                        } else {
+                            status.innerHTML = 'Upload in progress. Once complete, download the .tar file to extract locally.';
+                        }
+                    }
+                } else if (supportsProgressiveDownload) {
                     // Chrome/Edge - can start downloading immediately even if incomplete
                     downloadBtn.disabled = false;
                     if (fileInfo.complete) {
@@ -328,12 +370,21 @@
                 // Show direct link section
                 if (fileInfo.complete) {
                     directLink.href = `/api/download/${fileId}`;
-                    directLinkContainer.innerHTML = `<a href="/api/download/${fileId}" target="_blank">Direct link</a>`;
+                    const linkText = isArchive ? 'Download .tar file' : 'Direct link';
+                    directLinkContainer.innerHTML = `<a href="/api/download/${fileId}" target="_blank">${linkText}</a>`;
                     directLinkContainer.style.display = 'block';
-                } else if (!supportsProgressiveDownload) {
+                } else if (!supportsProgressiveDownload && !isArchive) {
                     // Unsupported browser + still uploading: show placeholder with progress
                     const pct = (fileInfo.chunksReceived / fileInfo.totalChunks * 100).toFixed(0);
                     directLinkContainer.innerHTML = `Direct link will appear here. File is still uploading (${pct}%)`;
+                    directLinkContainer.style.display = 'block';
+                } else if (isArchive && !supportsDirectoryPicker) {
+                    if (fileInfo.complete) {
+                        directLinkContainer.innerHTML = `<a href="/api/download/${fileId}" target="_blank">Download .tar file</a>`;
+                    } else {
+                        const pct = (fileInfo.chunksReceived / fileInfo.totalChunks * 100).toFixed(0);
+                        directLinkContainer.innerHTML = `.tar download will appear here. File is still uploading (${pct}%)`;
+                    }
                     directLinkContainer.style.display = 'block';
                 }
             } catch (err) {
@@ -358,6 +409,11 @@
         downloadBtn.addEventListener('click', startDownload);
 
         async function startDownload() {
+            // Check if this is an archive that needs extraction
+            if (fileInfo.type === 'archive') {
+                return startArchiveExtraction();
+            }
+
             // Use fallback for unsupported browsers
             if (!supportsProgressiveDownload) {
                 return startFallbackDownload();
@@ -887,6 +943,167 @@
         // Just navigate to the direct download URL - browser handles it natively
         function startFallbackDownload() {
             window.location.href = `/api/download/${fileId}`;
+        }
+
+        // Archive extraction for multi-file downloads
+        async function startArchiveExtraction() {
+            if (!supportsDirectoryPicker) {
+                return startFallbackDownload();
+            }
+
+            let destDir;
+            try {
+                destDir = await window.showDirectoryPicker({
+                    mode: 'readwrite'
+                });
+            } catch (err) {
+                if (err.name === 'AbortError') return; // User cancelled
+                status.className = 'status error';
+                status.textContent = 'Failed to select destination folder: ' + err.message;
+                return;
+            }
+
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = 'Extracting...';
+            progressContainer.classList.add('active');
+            status.className = 'status downloading';
+            status.textContent = 'Starting extraction...';
+
+            // Prevent accidental tab close
+            const preventClose = (e) => {
+                e.preventDefault();
+                e.returnValue = '';
+            };
+            window.addEventListener('beforeunload', preventClose);
+
+            const doExtraction = async () => {
+                // Fetch fresh file info
+                try {
+                    const res = await fetch(`/api/info/${fileId}`);
+                    if (res.ok) fileInfo = await res.json();
+                } catch (e) { /* use cached */ }
+
+                const startTime = Date.now();
+                let bytesDownloaded = 0;
+                let filesExtracted = 0;
+
+                // Create a ReadableStream that downloads chunks sequentially
+                const tarStream = new ReadableStream({
+                    async start() {
+                        this.currentChunk = 0;
+                    },
+
+                    async pull(controller) {
+                        // Re-check totalChunks in case it was updated by finalization
+                        if (this.currentChunk >= fileInfo.totalChunks) {
+                            controller.close();
+                            return;
+                        }
+
+                        // Wait for chunk to be available
+                        while (!fileInfo.chunkHashes[this.currentChunk]) {
+                            // Refresh file info to get new hashes
+                            try {
+                                const res = await fetch(`/api/info/${fileId}`);
+                                if (res.ok) fileInfo = await res.json();
+                            } catch (e) { /* retry */ }
+
+                            // Check if totalChunks changed (finalization may have reduced it)
+                            if (this.currentChunk >= fileInfo.totalChunks) {
+                                controller.close();
+                                return;
+                            }
+
+                            await new Promise(r => setTimeout(r, 1000));
+                        }
+
+                        // Download chunk with retries
+                        let data = null;
+                        let attempt = 0;
+                        while (!data) {
+                            try {
+                                const res = await fetch(`/api/chunk/${fileId}/${this.currentChunk}`);
+                                if (res.status === 403) {
+                                    const err = await res.json().catch(() => ({}));
+                                    if (err.error?.includes('quota')) {
+                                        status.className = 'status error';
+                                        status.textContent = 'Quota exhausted - waiting for more quota...';
+                                        await new Promise(r => setTimeout(r, 5000));
+                                        continue;
+                                    }
+                                }
+                                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                                data = await res.arrayBuffer();
+
+                                // Verify hash
+                                const hash = await hashData(data);
+                                if (hash !== fileInfo.chunkHashes[this.currentChunk]) {
+                                    data = null;
+                                    continue;
+                                }
+                            } catch (err) {
+                                attempt++;
+                                await new Promise(r => setTimeout(r, Math.min(attempt * 1000, 5000)));
+                            }
+                        }
+
+                        bytesDownloaded += data.byteLength;
+                        const progress = (bytesDownloaded / fileInfo.size * 100);
+                        progressFill.style.width = progress.toFixed(1) + '%';
+                        progressPercent.textContent = progress.toFixed(0) + '%';
+
+                        const elapsed = (Date.now() - startTime) / 1000;
+                        if (elapsed > 0) {
+                            const speed = bytesDownloaded / elapsed;
+                            progressSpeed.textContent = formatBytes(speed) + '/s';
+                            const remaining = fileInfo.size - bytesDownloaded;
+                            progressEta.textContent = formatTime(remaining / speed);
+                        }
+
+                        controller.enqueue(new Uint8Array(data));
+                        this.currentChunk++;
+                    }
+                });
+
+                // Extract TAR to destination folder
+                status.textContent = 'Extracting files...';
+
+                try {
+                    for await (const progress of window.TarStream.extractTarToDirectory(tarStream, destDir)) {
+                        if (progress.type === 'file') {
+                            filesExtracted = progress.filesExtracted;
+                            status.textContent = `Extracted ${filesExtracted} files: ${progress.path}`;
+                        } else if (progress.type === 'directory') {
+                            status.textContent = `Creating folder: ${progress.path}`;
+                        } else if (progress.type === 'complete') {
+                            filesExtracted = progress.filesExtracted;
+                        }
+                    }
+
+                    status.className = 'status complete';
+                    status.textContent = `Extraction complete! ${filesExtracted} files extracted.`;
+                    progressFill.style.width = '100%';
+                    progressPercent.textContent = '100%';
+                    downloadBtn.disabled = false;
+                    downloadBtn.textContent = 'Extract Again';
+
+                } catch (err) {
+                    status.className = 'status error';
+                    status.textContent = 'Extraction error: ' + err.message;
+                    downloadBtn.disabled = false;
+                    downloadBtn.textContent = 'Retry Extraction';
+                }
+            };
+
+            try {
+                if (navigator.locks) {
+                    await navigator.locks.request('sendinator-extraction', doExtraction);
+                } else {
+                    await doExtraction();
+                }
+            } finally {
+                window.removeEventListener('beforeunload', preventClose);
+            }
         }
 
         loadFileInfo();
