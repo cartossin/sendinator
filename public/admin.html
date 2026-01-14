@@ -401,7 +401,7 @@
         </div>
     </div>
 
-    <div class="version">v3.0.0</div>
+    <div class="version">v3.1.0</div>
 
     <script>
         let keys = [];
@@ -849,6 +849,7 @@
         }
 
         function logout() {
+            stopAutoRefresh();
             sessionToken = null;
             localStorage.removeItem('adminSession');
             adminPanel.classList.remove('active');

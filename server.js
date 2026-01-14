@@ -666,6 +666,68 @@ const server = http.createServer(async (req, res) => {
             return;
         }
 
+        // GET /api/download/:id - direct download (fallback for browsers without File System Access API)
+        const directDownloadMatch = pathname.match(/^\/api\/download\/([a-f0-9]+)$/);
+        if (method === 'GET' && directDownloadMatch) {
+            const id = directDownloadMatch[1];
+
+            const fileInfo = files.get(id);
+            if (!fileInfo) {
+                return sendJson(res, 404, { error: 'File not found' });
+            }
+
+            // Only allow direct download for complete files
+            if (fileInfo.chunksReceived.size !== fileInfo.totalChunks) {
+                return sendJson(res, 400, { error: 'File upload not complete' });
+            }
+
+            // Block downloads for orphaned files
+            if (!fileInfo.uploadKey) {
+                return sendJson(res, 403, { error: 'File is no longer available' });
+            }
+
+            // Block downloads if quota exhausted
+            const keyData = uploadKeys.get(fileInfo.uploadKey);
+            if (!keyData) {
+                return sendJson(res, 403, { error: 'File is no longer available' });
+            }
+            if (keyData.usedBytes >= keyData.quotaBytes) {
+                return sendJson(res, 403, { error: 'Download unavailable - quota exhausted' });
+            }
+
+            // Verify all chunks exist before starting download
+            for (let i = 0; i < fileInfo.totalChunks; i++) {
+                const chunkPath = path.join(UPLOAD_DIR, id, `chunk_${i}`);
+                try {
+                    await fs.promises.access(chunkPath);
+                } catch (err) {
+                    return sendJson(res, 500, { error: `Missing chunk ${i}` });
+                }
+            }
+
+            // Set headers for download
+            res.writeHead(200, {
+                'Content-Type': 'application/octet-stream',
+                'Content-Disposition': `attachment; filename="${encodeURIComponent(fileInfo.filename)}"`,
+                'Content-Length': fileInfo.size
+            });
+
+            // Stream chunks in order
+            for (let i = 0; i < fileInfo.totalChunks; i++) {
+                const chunkPath = path.join(UPLOAD_DIR, id, `chunk_${i}`);
+                const chunkData = await fs.promises.readFile(chunkPath);
+                res.write(chunkData);
+            }
+
+            // Track download bytes against quota
+            keyData.usedBytes += fileInfo.size;
+            saveUploadKeys();
+
+            console.log(`Direct download completed: ${id} - ${fileInfo.filename} (${formatBytes(fileInfo.size)})`);
+            res.end();
+            return;
+        }
+
         // === ADMIN API ===
 
         // GET /api/admin/status - check if passkey exists

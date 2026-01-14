@@ -45,6 +45,8 @@
         .file-icon { font-size: 3em; }
         .file-details h2 { margin: 0 0 8px 0; word-break: break-all; font-size: 1.3em; }
         .file-size { color: #888; font-size: 0.95em; }
+        .upload-progress { color: #fbbf24; font-size: 0.85em; margin-top: 4px; }
+        .upload-progress.complete { color: #10b981; }
         .download-btn {
             display: block;
             width: 100%;
@@ -116,7 +118,7 @@
 </head>
 <body>
     <h1>Sendinator</h1>
-    <p class="tagline">Your file is ready</p>
+    <p class="tagline" id="tagline">Your file is ready</p>
 
     <div class="download-card" id="downloadCard">
         <div class="file-info">
@@ -124,6 +126,7 @@
             <div class="file-details">
                 <h2 id="fileName">Loading...</h2>
                 <div class="file-size" id="fileSize">--</div>
+                <div class="upload-progress" id="uploadProgress"></div>
             </div>
         </div>
 
@@ -150,7 +153,7 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v3.0.0</div>
+    <div class="version">v3.1.0</div>
 
     <script>
         // Pipeline configuration
@@ -160,11 +163,14 @@
 
         const fileId = window.location.pathname.split('/').pop();
         let fileInfo = null;
+        const supportsProgressiveDownload = !!window.showSaveFilePicker;
 
         const downloadCard = document.getElementById('downloadCard');
         const notFound = document.getElementById('notFound');
         const fileName = document.getElementById('fileName');
         const fileSize = document.getElementById('fileSize');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const tagline = document.getElementById('tagline');
         const downloadBtn = document.getElementById('downloadBtn');
         const progressContainer = document.getElementById('progressContainer');
         const progressFill = document.getElementById('progressFill');
@@ -173,6 +179,7 @@
         const progressSpeed = document.getElementById('progressSpeed');
         const status = document.getElementById('status');
         const chunkInfo = document.getElementById('chunkInfo');
+        let refreshInterval = null;
 
         async function loadFileInfo() {
             try {
@@ -187,6 +194,26 @@
                 fileSize.textContent = formatBytes(fileInfo.size);
                 chunkInfo.textContent = `${fileInfo.totalChunks} chunks × ${formatBytes(fileInfo.chunkSize)}`;
 
+                // Show upload progress
+                if (fileInfo.complete) {
+                    uploadProgress.textContent = 'Upload complete';
+                    uploadProgress.className = 'upload-progress complete';
+                    tagline.textContent = 'Your file is ready';
+                    if (refreshInterval) {
+                        clearInterval(refreshInterval);
+                        refreshInterval = null;
+                    }
+                } else {
+                    const pct = (fileInfo.chunksReceived / fileInfo.totalChunks * 100).toFixed(0);
+                    uploadProgress.textContent = `Uploading: ${fileInfo.chunksReceived}/${fileInfo.totalChunks} chunks (${pct}%)`;
+                    uploadProgress.className = 'upload-progress';
+                    tagline.textContent = 'File upload in progress';
+                    // Auto-refresh while upload is in progress
+                    if (!refreshInterval) {
+                        refreshInterval = setInterval(loadFileInfo, 2000);
+                    }
+                }
+
                 // Check if file is downloadable
                 if (!fileInfo.downloadable) {
                     downloadBtn.disabled = true;
@@ -196,16 +223,32 @@
                     return;
                 }
 
-                // Enable download as soon as we have file info (even if upload incomplete)
-                downloadBtn.disabled = false;
-                if (fileInfo.complete) {
-                    downloadBtn.textContent = 'Download File';
-                    status.className = 'status complete';
-                    status.textContent = 'Ready to download';
+                // Handle based on browser support and file completeness
+                if (supportsProgressiveDownload) {
+                    // Chrome/Edge - can start downloading immediately even if incomplete
+                    downloadBtn.disabled = false;
+                    if (fileInfo.complete) {
+                        downloadBtn.textContent = 'Download File';
+                        status.className = 'status complete';
+                        status.textContent = 'Ready to download';
+                    } else {
+                        downloadBtn.textContent = 'Start Download';
+                        status.className = 'status waiting';
+                        status.textContent = 'You can start downloading now while upload continues';
+                    }
                 } else {
-                    downloadBtn.textContent = 'Start Download';
-                    status.className = 'status waiting';
-                    status.textContent = `Upload in progress (${fileInfo.chunksReceived}/${fileInfo.totalChunks} chunks) - you can start downloading now!`;
+                    // Safari/Firefox - need fallback download
+                    if (fileInfo.complete) {
+                        downloadBtn.disabled = false;
+                        downloadBtn.textContent = 'Download File';
+                        status.className = 'status complete';
+                        status.textContent = 'Ready to download';
+                    } else {
+                        downloadBtn.disabled = true;
+                        downloadBtn.textContent = 'Waiting for upload...';
+                        status.className = 'status waiting';
+                        status.textContent = 'File upload is still in progress. Please wait, or use Chrome/Edge to start downloading immediately.';
+                    }
                 }
             } catch (err) {
                 console.error('Error loading file info:', err);
@@ -221,10 +264,9 @@
         downloadBtn.addEventListener('click', startDownload);
 
         async function startDownload() {
-            if (!window.showSaveFilePicker) {
-                status.className = 'status error';
-                status.textContent = 'Unsupported browser. Please use Chrome or Edge.';
-                return;
+            // Use fallback for unsupported browsers
+            if (!supportsProgressiveDownload) {
+                return startFallbackDownload();
             }
 
             let fileHandle, writable;
@@ -722,6 +764,86 @@
             const h = Math.floor(seconds / 3600);
             const m = Math.ceil((seconds % 3600) / 60);
             return h + 'h ' + m + 'm';
+        }
+
+        // Fallback download for browsers without File System Access API
+        async function startFallbackDownload() {
+            if (!fileInfo.complete) {
+                status.className = 'status error';
+                status.textContent = 'File upload is not complete. Please wait or use Chrome/Edge.';
+                return;
+            }
+
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = 'Downloading...';
+            progressContainer.classList.add('active');
+            status.className = 'status downloading';
+            status.textContent = 'Starting download...';
+
+            // Track download progress
+            let downloadedBytes = 0;
+            const startTime = Date.now();
+
+            const updateProgress = () => {
+                const pct = (downloadedBytes / fileInfo.size * 100).toFixed(1);
+                progressFill.style.width = pct + '%';
+                progressPercent.textContent = pct + '%';
+
+                const elapsed = (Date.now() - startTime) / 1000;
+                if (elapsed > 0 && downloadedBytes > 0) {
+                    const speed = downloadedBytes / elapsed;
+                    progressSpeed.textContent = formatBytes(speed) + '/s';
+                    const remaining = (fileInfo.size - downloadedBytes) / speed;
+                    progressEta.textContent = formatTime(remaining);
+                }
+            };
+
+            try {
+                const res = await fetch(`/api/download/${fileId}`);
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({ error: 'Download failed' }));
+                    throw new Error(err.error || `HTTP ${res.status}`);
+                }
+
+                // Stream the response and track progress
+                const reader = res.body.getReader();
+                const chunks = [];
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunks.push(value);
+                    downloadedBytes += value.length;
+                    updateProgress();
+                    status.textContent = `Downloading: ${formatBytes(downloadedBytes)} / ${formatBytes(fileInfo.size)}`;
+                }
+
+                // Combine chunks into a blob
+                const blob = new Blob(chunks);
+
+                // Create download link
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileInfo.filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                status.className = 'status complete';
+                status.textContent = 'Download complete!';
+                progressFill.style.width = '100%';
+                progressPercent.textContent = '100%';
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = 'Download Again';
+
+            } catch (err) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + err.message;
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = 'Retry Download';
+            }
         }
 
         loadFileInfo();
