@@ -801,6 +801,11 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
+        // GET /admin - serve admin page
+        if (method === 'GET' && pathname === '/admin') {
+            return serveStatic(res, path.join(PUBLIC_DIR, 'admin.html'));
+        }
+
         // GET /download/:id - serve download page
         const downloadMatch = pathname.match(/^\/download\/([a-f0-9]+)$/);
         if (method === 'GET' && downloadMatch) {
