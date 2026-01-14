@@ -323,16 +323,22 @@ function verifyES256Signature(publicKeyUncompressed, signature, data) {
                 derKey.toString('base64').match(/.{1,64}/g).join('\n') +
                 '\n-----END PUBLIC KEY-----';
 
-    // WebAuthn uses DER-encoded signature, Node's crypto expects it
-    const verify = crypto.createVerify('SHA256');
-    verify.update(data);
-
-    try {
-        return verify.verify({ key: pem, dsaEncoding: 'ieee-p1363' }, signature);
-    } catch (err) {
-        console.error('Signature verification error:', err.message);
-        return false;
+    // Try IEEE P1363 format first (raw r||s), then DER format
+    // Different authenticators may use different formats
+    for (const dsaEncoding of ['ieee-p1363', 'der']) {
+        try {
+            const verify = crypto.createVerify('SHA256');
+            verify.update(data);
+            if (verify.verify({ key: pem, dsaEncoding }, signature)) {
+                return true;
+            }
+        } catch (err) {
+            // Try next format
+        }
     }
+
+    console.error('Signature verification failed for all formats');
+    return false;
 }
 
 // === REQUEST HANDLER ===
@@ -723,6 +729,11 @@ const server = http.createServer(async (req, res) => {
                 const signature = base64urlToBuffer(body.response.signature);
                 const publicKey = base64urlToBuffer(passkey.publicKey);
 
+                console.log('Verifying signature:', {
+                    publicKeyLen: publicKey.length,
+                    signatureLen: signature.length,
+                    signedDataLen: signedData.length
+                });
                 const valid = verifyES256Signature(publicKey, signature, signedData);
                 if (!valid) {
                     return sendJson(res, 400, { error: 'Invalid signature' });
