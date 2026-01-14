@@ -130,7 +130,30 @@
         .key-card.expanded .key-toggle { transform: rotate(90deg); }
         .key-info { flex: 1; }
         .key-label { font-weight: 600; font-size: 1.1em; }
-        .key-label .key-string { font-family: monospace; font-size: 0.85em; color: #888; margin-left: 10px; }
+        .key-label .key-string {
+            font-family: monospace;
+            font-size: 0.85em;
+            color: #888;
+            margin-left: 10px;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .key-label .key-string:hover { background: rgba(102, 126, 234, 0.2); }
+        .keys-header {
+            display: flex;
+            padding: 10px 20px 10px 50px;
+            font-size: 0.8em;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #333;
+            margin-bottom: 10px;
+        }
+        .keys-header .col-label { flex: 1; }
+        .keys-header .col-quota { width: 180px; text-align: right; }
+        .keys-header .col-actions { width: 80px; text-align: right; }
         .key-meta { font-size: 0.85em; color: #888; margin-top: 4px; }
         .key-quota {
             display: flex;
@@ -546,7 +569,15 @@
             }
             emptyState.style.display = 'none';
 
-            keysList.innerHTML = keys.map(k => {
+            const header = `
+                <div class="keys-header">
+                    <div class="col-label">Label / Upload Key</div>
+                    <div class="col-quota">Quota Used</div>
+                    <div class="col-actions"></div>
+                </div>
+            `;
+
+            keysList.innerHTML = header + keys.map(k => {
                 const usedPercent = k.quotaBytes > 0 ? (k.usedBytes / k.quotaBytes * 100) : 0;
                 const quotaClass = usedPercent > 90 ? 'danger' : usedPercent > 70 ? 'warning' : '';
                 const isExpanded = expandedKeys.has(k.key);
@@ -558,7 +589,7 @@
                             <div class="key-info">
                                 <div class="key-label">
                                     ${escapeHtml(k.label) || '(No label)'}
-                                    <span class="key-string">${revealedKeys.has(k.key) ? k.key : '••••••••••••••••••••'}</span>
+                                    <span class="key-string" onclick="event.stopPropagation(); copyKey('${k.key}')" title="Click to copy">${revealedKeys.has(k.key) ? k.key : '••••••••••••••••••••'}</span>
                                     <button class="eye-btn-inline" onclick="event.stopPropagation(); toggleReveal('${k.key}')" title="${revealedKeys.has(k.key) ? 'Hide' : 'Show'} key">${revealedKeys.has(k.key) ? '👁' : '👁‍🗨'}</button>
                                 </div>
                                 <div class="key-meta">${k.uploads.length} file${k.uploads.length !== 1 ? 's' : ''} &bull; Created ${formatDate(k.createdAt)}</div>
@@ -570,7 +601,6 @@
                                 <div class="quota-text">${formatBytes(k.usedBytes)} / ${formatBytes(k.quotaBytes)}</div>
                             </div>
                             <div class="key-actions" onclick="event.stopPropagation()">
-                                <button class="copy-key-btn" onclick="copyKey('${k.key}')">Copy</button>
                                 <button class="delete-key-btn" onclick="deleteKey('${k.key}')">Delete</button>
                             </div>
                         </div>
@@ -655,10 +685,14 @@
 
         function copyKey(key) {
             navigator.clipboard.writeText(key).then(() => {
-                const btn = event.target;
-                const orig = btn.textContent;
-                btn.textContent = 'Copied!';
-                setTimeout(() => btn.textContent = orig, 1500);
+                const el = event.target;
+                const orig = el.textContent;
+                el.textContent = 'Copied!';
+                el.style.color = '#10b981';
+                setTimeout(() => {
+                    el.textContent = orig;
+                    el.style.color = '';
+                }, 1500);
             });
         }
 
