@@ -562,6 +562,23 @@ const server = http.createServer(async (req, res) => {
                 return sendJson(res, 404, { error: 'File not found' });
             }
 
+            // Check if file is downloadable
+            let downloadable = true;
+            let downloadError = null;
+            if (!fileInfo.uploadKey) {
+                downloadable = false;
+                downloadError = 'This file is no longer available';
+            } else {
+                const keyData = uploadKeys.get(fileInfo.uploadKey);
+                if (!keyData) {
+                    downloadable = false;
+                    downloadError = 'This file is no longer available';
+                } else if (keyData.usedBytes >= keyData.quotaBytes) {
+                    downloadable = false;
+                    downloadError = 'Download unavailable - quota exhausted';
+                }
+            }
+
             return sendJson(res, 200, {
                 id: fileInfo.id,
                 filename: fileInfo.filename,
@@ -571,7 +588,9 @@ const server = http.createServer(async (req, res) => {
                 chunksReceived: fileInfo.chunksReceived.size,
                 complete: fileInfo.chunksReceived.size === fileInfo.totalChunks,
                 chunkSize: fileInfo.chunkSize || CHUNK_SIZE,
-                targetBufferMemory: TARGET_BUFFER_MEMORY
+                targetBufferMemory: TARGET_BUFFER_MEMORY,
+                downloadable,
+                downloadError
             });
         }
 
@@ -590,6 +609,20 @@ const server = http.createServer(async (req, res) => {
                 return sendJson(res, 404, { error: 'Chunk not yet uploaded' });
             }
 
+            // Block downloads for orphaned files
+            if (!fileInfo.uploadKey) {
+                return sendJson(res, 403, { error: 'File is no longer available' });
+            }
+
+            // Block downloads if quota exhausted
+            const keyData = uploadKeys.get(fileInfo.uploadKey);
+            if (!keyData) {
+                return sendJson(res, 403, { error: 'File is no longer available' });
+            }
+            if (keyData.usedBytes >= keyData.quotaBytes) {
+                return sendJson(res, 403, { error: 'Download unavailable - quota exhausted' });
+            }
+
             const chunkPath = path.join(UPLOAD_DIR, id, `chunk_${chunkIndex}`);
 
             if (USE_NGINX_ACCEL) {
@@ -598,13 +631,8 @@ const server = http.createServer(async (req, res) => {
                     const stat = await fs.promises.stat(chunkPath);
 
                     // Track download bytes against quota
-                    if (fileInfo.uploadKey) {
-                        const keyData = uploadKeys.get(fileInfo.uploadKey);
-                        if (keyData) {
-                            keyData.usedBytes += stat.size;
-                            saveUploadKeys();
-                        }
-                    }
+                    keyData.usedBytes += stat.size;
+                    saveUploadKeys();
 
                     res.writeHead(200, {
                         'X-Accel-Redirect': `/internal-chunks/${id}/chunk_${chunkIndex}`,
@@ -622,13 +650,8 @@ const server = http.createServer(async (req, res) => {
                     const stat = await fs.promises.stat(chunkPath);
 
                     // Track download bytes against quota
-                    if (fileInfo.uploadKey) {
-                        const keyData = uploadKeys.get(fileInfo.uploadKey);
-                        if (keyData) {
-                            keyData.usedBytes += stat.size;
-                            saveUploadKeys();
-                        }
-                    }
+                    keyData.usedBytes += stat.size;
+                    saveUploadKeys();
 
                     res.writeHead(200, {
                         'Content-Length': stat.size,

@@ -187,6 +187,15 @@
                 fileSize.textContent = formatBytes(fileInfo.size);
                 chunkInfo.textContent = `${fileInfo.totalChunks} chunks × ${formatBytes(fileInfo.chunkSize)}`;
 
+                // Check if file is downloadable
+                if (!fileInfo.downloadable) {
+                    downloadBtn.disabled = true;
+                    downloadBtn.textContent = 'Unavailable';
+                    status.className = 'status error';
+                    status.textContent = fileInfo.downloadError || 'This file is not available for download';
+                    return;
+                }
+
                 // Enable download as soon as we have file info (even if upload incomplete)
                 downloadBtn.disabled = false;
                 if (fileInfo.complete) {
