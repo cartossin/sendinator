@@ -139,8 +139,28 @@
             padding: 2px 6px;
             border-radius: 4px;
             transition: background 0.2s;
+            position: relative;
         }
         .key-label .key-string:hover { background: rgba(102, 126, 234, 0.2); }
+        .key-label .key-string::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.15s;
+            margin-bottom: 4px;
+        }
+        .key-label .key-string:hover::after { opacity: 1; }
+        .key-label .key-string.copied::after { content: 'Copied!'; background: #10b981; }
         .keys-header {
             display: flex;
             padding: 10px 20px 10px 50px;
@@ -618,7 +638,7 @@
                             <div class="key-info">
                                 <div class="key-label">
                                     ${escapeHtml(k.label) || '(No label)'}
-                                    <span class="key-string" onclick="event.stopPropagation(); copyKey('${k.key}')" title="Click to copy">${revealedKeys.has(k.key) ? k.key : '••••••••••••••••••••'}</span>
+                                    <span class="key-string" onclick="event.stopPropagation(); copyKey('${k.key}', this)" data-tooltip="Click to copy">${revealedKeys.has(k.key) ? k.key : '••••••••••••••••••••'}</span>
                                     <button class="eye-btn-inline" onclick="event.stopPropagation(); toggleReveal('${k.key}')" title="${revealedKeys.has(k.key) ? 'Hide' : 'Show'} key">${revealedKeys.has(k.key) ? '👁' : '👁‍🗨'}</button>
                                 </div>
                                 <div class="key-meta">${k.uploads.length} file${k.uploads.length !== 1 ? 's' : ''} &bull; Created ${formatDate(k.createdAt)}</div>
@@ -766,15 +786,11 @@
             }
         }
 
-        function copyKey(key) {
+        function copyKey(key, el) {
             navigator.clipboard.writeText(key).then(() => {
-                const el = event.target;
-                const orig = el.textContent;
-                el.textContent = 'Copied!';
-                el.style.color = '#10b981';
+                el.classList.add('copied');
                 setTimeout(() => {
-                    el.textContent = orig;
-                    el.style.color = '';
+                    el.classList.remove('copied');
                 }, 1500);
             });
         }
