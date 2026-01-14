@@ -508,6 +508,9 @@
         init();
 
         async function handleFile(file) {
+            // Refresh session to get latest quota (in case it was updated in another tab)
+            await checkSession();
+
             if (!serverConfig) {
                 await loadConfig();
             }
@@ -576,6 +579,8 @@
                 console.error('Upload error:', err);
                 status.className = 'status error';
                 status.textContent = 'Error: ' + err.message;
+                // Show dropzone again so user can retry
+                dropzone.style.display = 'flex';
             } finally {
                 window.removeEventListener('beforeunload', preventClose);
                 // Refresh quota display
