@@ -144,13 +144,142 @@
         }
         .admin-link:hover { color: #667eea; }
         .version { position: fixed; bottom: 10px; right: 10px; color: #444; font-size: 0.75em; }
+
+        /* Login container */
+        .login-container {
+            width: 100%;
+            max-width: 400px;
+            background: #252542;
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+        }
+        .login-container h2 {
+            margin: 0 0 10px 0;
+            color: #eee;
+        }
+        .login-container p {
+            color: #888;
+            margin: 0 0 25px 0;
+            font-size: 0.95em;
+        }
+        .key-input {
+            width: 100%;
+            padding: 14px;
+            background: #1a1a2e;
+            border: 2px solid #444;
+            border-radius: 10px;
+            color: #eee;
+            font-size: 1.1em;
+            font-family: monospace;
+            text-align: center;
+            letter-spacing: 2px;
+            margin-bottom: 15px;
+        }
+        .key-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .key-input::placeholder {
+            color: #555;
+            letter-spacing: normal;
+        }
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .login-btn:hover { opacity: 0.9; }
+        .login-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .login-error {
+            color: #ef4444;
+            margin-top: 15px;
+            font-size: 0.9em;
+            display: none;
+        }
+
+        /* Session bar */
+        .session-bar {
+            display: none;
+            width: 100%;
+            max-width: 600px;
+            background: #252542;
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .session-bar.active { display: flex; }
+        .session-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .session-label {
+            font-weight: 600;
+            color: #eee;
+        }
+        .session-quota {
+            font-size: 0.85em;
+            color: #888;
+        }
+        .session-quota .remaining {
+            color: #10b981;
+            font-weight: 600;
+        }
+        .session-quota .exceeded {
+            color: #ef4444;
+        }
+        .logout-btn {
+            padding: 8px 16px;
+            background: transparent;
+            border: 2px solid #444;
+            border-radius: 8px;
+            color: #888;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .logout-btn:hover {
+            border-color: #ef4444;
+            color: #ef4444;
+        }
     </style>
 </head>
 <body>
     <h1>Sendinator</h1>
     <p class="tagline">Drop a file. Share the link. Done.</p>
 
-    <div class="dropzone" id="dropzone">
+    <!-- Login container (shown when not authenticated) -->
+    <div class="login-container" id="loginContainer">
+        <h2>Enter Upload Key</h2>
+        <p>You need an upload key to share files</p>
+        <input type="text" class="key-input" id="keyInput" placeholder="Enter your key" autocomplete="off" spellcheck="false">
+        <button class="login-btn" id="loginBtn">Login</button>
+        <div class="login-error" id="loginError"></div>
+    </div>
+
+    <!-- Session bar (shown when authenticated) -->
+    <div class="session-bar" id="sessionBar">
+        <div class="session-info">
+            <span class="session-label" id="sessionLabel">Upload Key</span>
+            <span class="session-quota" id="sessionQuota">Loading...</span>
+        </div>
+        <button class="logout-btn" id="logoutBtn">Logout</button>
+    </div>
+
+    <div class="dropzone" id="dropzone" style="display: none;">
         <div class="dropzone-icon">📁</div>
         <div class="dropzone-text">Drag & drop a file here</div>
         <div class="dropzone-subtext">or click to select</div>
@@ -192,12 +321,26 @@
     </div>
 
     <a href="/admin" class="admin-link">Admin</a>
-    <div class="version">v2.9.0</div>
+    <div class="version">v3.0.0</div>
 
     <script>
         const PARALLEL_UPLOADS = 4;
         let serverConfig = null;  // Fetched from server
+        let currentSession = null;  // Current key session info
 
+        // Login elements
+        const loginContainer = document.getElementById('loginContainer');
+        const keyInput = document.getElementById('keyInput');
+        const loginBtn = document.getElementById('loginBtn');
+        const loginError = document.getElementById('loginError');
+
+        // Session bar elements
+        const sessionBar = document.getElementById('sessionBar');
+        const sessionLabel = document.getElementById('sessionLabel');
+        const sessionQuota = document.getElementById('sessionQuota');
+        const logoutBtn = document.getElementById('logoutBtn');
+
+        // Upload elements
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('fileInput');
         const uploadContainer = document.getElementById('uploadContainer');
@@ -213,6 +356,103 @@
         const status = document.getElementById('status');
         const chunkInfo = document.getElementById('chunkInfo');
         const newUploadBtn = document.getElementById('newUploadBtn');
+
+        // Check session status on page load
+        async function checkSession() {
+            try {
+                const res = await fetch('/api/key/status');
+                const data = await res.json();
+                if (data.loggedIn) {
+                    currentSession = data;
+                    showUploadUI();
+                } else {
+                    showLoginUI();
+                }
+            } catch (err) {
+                console.error('Failed to check session:', err);
+                showLoginUI();
+            }
+        }
+
+        function showLoginUI() {
+            loginContainer.style.display = 'block';
+            sessionBar.classList.remove('active');
+            dropzone.style.display = 'none';
+            uploadContainer.classList.remove('active');
+        }
+
+        function showUploadUI() {
+            loginContainer.style.display = 'none';
+            sessionBar.classList.add('active');
+            dropzone.style.display = 'flex';
+            updateQuotaDisplay();
+        }
+
+        function updateQuotaDisplay() {
+            if (!currentSession) return;
+            sessionLabel.textContent = currentSession.label || 'Upload Key';
+            const remaining = currentSession.quotaBytes - currentSession.usedBytes;
+            if (remaining > 0) {
+                sessionQuota.innerHTML = `<span class="remaining">${formatBytes(remaining)}</span> remaining of ${formatBytes(currentSession.quotaBytes)}`;
+            } else {
+                sessionQuota.innerHTML = `<span class="exceeded">Quota exceeded</span> (${formatBytes(currentSession.usedBytes)} / ${formatBytes(currentSession.quotaBytes)})`;
+            }
+        }
+
+        // Login handler
+        loginBtn.addEventListener('click', handleLogin);
+        keyInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleLogin();
+        });
+
+        async function handleLogin() {
+            const key = keyInput.value.trim();
+            if (!key) {
+                showLoginError('Please enter an upload key');
+                return;
+            }
+
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Logging in...';
+            loginError.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/key/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    currentSession = data;
+                    keyInput.value = '';
+                    showUploadUI();
+                } else {
+                    showLoginError(data.error || 'Invalid key');
+                }
+            } catch (err) {
+                showLoginError('Login failed: ' + err.message);
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Login';
+            }
+        }
+
+        function showLoginError(msg) {
+            loginError.textContent = msg;
+            loginError.style.display = 'block';
+        }
+
+        // Logout handler
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                await fetch('/api/key/logout', { method: 'POST' });
+            } catch (err) {
+                console.error('Logout error:', err);
+            }
+            currentSession = null;
+            showLoginUI();
+        });
 
         // Drag and drop
         dropzone.addEventListener('click', () => fileInput.click());
@@ -239,11 +479,13 @@
             setTimeout(() => copyBtn.textContent = 'Copy', 2000);
         });
 
-        newUploadBtn.addEventListener('click', () => {
+        newUploadBtn.addEventListener('click', async () => {
             uploadContainer.classList.remove('active');
             dropzone.style.display = 'flex';
             shareLinkContainer.style.display = 'none';
             fileInput.value = '';
+            // Refresh session status to get updated quota
+            await checkSession();
         });
 
         // Fetch server configuration on page load
@@ -257,7 +499,13 @@
                 serverConfig = { chunkSize: 4 * 1024 * 1024 };
             }
         }
-        loadConfig();
+
+        // Initialize page
+        async function init() {
+            await loadConfig();
+            await checkSession();
+        }
+        init();
 
         async function handleFile(file) {
             if (!serverConfig) {
@@ -298,7 +546,12 @@
                     })
                 });
 
-                const { id, url } = await createRes.json();
+                const createData = await createRes.json();
+                if (!createRes.ok) {
+                    throw new Error(createData.error || 'Failed to create upload');
+                }
+
+                const { id, url } = createData;
                 shareLink.value = window.location.origin + url;
                 shareLinkContainer.style.display = 'block';
 
@@ -325,6 +578,8 @@
                 status.textContent = 'Error: ' + err.message;
             } finally {
                 window.removeEventListener('beforeunload', preventClose);
+                // Refresh quota display
+                await checkSession();
             }
         }
 

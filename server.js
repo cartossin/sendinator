@@ -10,11 +10,17 @@ const __dirname = path.dirname(__filename);
 // === ADMIN CONFIGURATION ===
 const ADMIN_DIR = process.env.ADMIN_DIR || '/var/lib/sendinator';
 const PASSKEY_FILE = path.join(ADMIN_DIR, 'passkey.json');
+const UPLOAD_KEYS_FILE = path.join(ADMIN_DIR, 'upload-keys.json');
 const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+const KEY_SESSION_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days for upload key sessions
 
 // In-memory stores for auth
 const pendingChallenges = new Map(); // challengeId -> { challenge, timestamp }
-const sessions = new Map(); // token -> { createdAt }
+const sessions = new Map(); // token -> { createdAt } (admin sessions)
+const keySessions = new Map(); // token -> { key, createdAt } (upload key sessions)
+
+// Upload keys storage
+let uploadKeys = new Map(); // key -> { quotaBytes, usedBytes, createdAt, uploads[] }
 
 // Clean up old challenges/sessions periodically
 setInterval(() => {
@@ -25,7 +31,65 @@ setInterval(() => {
     for (const [token, data] of sessions) {
         if (now - data.createdAt > SESSION_DURATION) sessions.delete(token);
     }
+    for (const [token, data] of keySessions) {
+        if (now - data.createdAt > KEY_SESSION_DURATION) keySessions.delete(token);
+    }
 }, 60 * 1000);
+
+// Load upload keys from disk
+function loadUploadKeys() {
+    try {
+        if (fs.existsSync(UPLOAD_KEYS_FILE)) {
+            const data = JSON.parse(fs.readFileSync(UPLOAD_KEYS_FILE, 'utf8'));
+            uploadKeys = new Map(Object.entries(data));
+            console.log(`Loaded ${uploadKeys.size} upload keys`);
+        }
+    } catch (err) {
+        console.error('Failed to load upload keys:', err.message);
+    }
+}
+
+// Save upload keys to disk
+function saveUploadKeys() {
+    const data = Object.fromEntries(uploadKeys);
+    fs.writeFileSync(UPLOAD_KEYS_FILE, JSON.stringify(data, null, 2));
+}
+
+// Generate a 20-character upload key
+function generateUploadKey() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let key = '';
+    const bytes = crypto.randomBytes(20);
+    for (let i = 0; i < 20; i++) {
+        key += chars[bytes[i] % chars.length];
+    }
+    return key;
+}
+
+// Verify upload key session from cookie
+function verifyKeySession(req) {
+    const cookies = req.headers.cookie?.split(';').reduce((acc, c) => {
+        const [k, v] = c.trim().split('=');
+        acc[k] = v;
+        return acc;
+    }, {}) || {};
+
+    const token = cookies['upload_session'];
+    if (!token) return null;
+
+    const session = keySessions.get(token);
+    if (!session) return null;
+
+    if (Date.now() - session.createdAt > KEY_SESSION_DURATION) {
+        keySessions.delete(token);
+        return null;
+    }
+
+    const keyData = uploadKeys.get(session.key);
+    if (!keyData) return null;
+
+    return { key: session.key, ...keyData };
+}
 
 // === CONFIGURATION ===
 const PORT = process.env.PORT || 3000;
@@ -358,11 +422,23 @@ const server = http.createServer(async (req, res) => {
 
         // POST /api/create
         if (method === 'POST' && pathname === '/api/create') {
+            // Require upload key session
+            const keySession = verifyKeySession(req);
+            if (!keySession) {
+                return sendJson(res, 401, { error: 'Upload key required' });
+            }
+
             const body = await readJsonBody(req);
             const { filename, size, totalChunks } = body;
 
             if (!filename || !size || !totalChunks) {
                 return sendJson(res, 400, { error: 'Missing required fields' });
+            }
+
+            // Check quota (upload + download counts, so multiply by 2 for conservative estimate)
+            const remainingQuota = keySession.quotaBytes - keySession.usedBytes;
+            if (size > remainingQuota) {
+                return sendJson(res, 403, { error: `File size (${formatBytes(size)}) exceeds remaining quota (${formatBytes(remainingQuota)})` });
             }
 
             const id = crypto.randomBytes(16).toString('hex');
@@ -377,13 +453,21 @@ const server = http.createServer(async (req, res) => {
                 chunkSize: CHUNK_SIZE,
                 chunkHashes: new Array(totalChunks).fill(null),
                 chunksReceived: new Set(),
-                createdAt: Date.now()
+                createdAt: Date.now(),
+                uploadKey: keySession.key  // Track which key uploaded this
             };
 
             files.set(id, fileInfo);
             saveMetadata(id, fileInfo);
 
-            console.log(`Created file: ${id} - ${filename} (${formatBytes(size)}, ${totalChunks} chunks)`);
+            // Add upload to key's list
+            const keyData = uploadKeys.get(keySession.key);
+            if (keyData) {
+                keyData.uploads.push(id);
+                saveUploadKeys();
+            }
+
+            console.log(`Created file: ${id} - ${filename} (${formatBytes(size)}, ${totalChunks} chunks) [key: ${keySession.key.slice(0, 8)}...]`);
             return sendJson(res, 200, { id, url: `/download/${id}` });
         }
 
@@ -436,6 +520,15 @@ const server = http.createServer(async (req, res) => {
                     fileInfo.chunkHashes[chunkIndex] = computedHash;
                     fileInfo.chunksReceived.add(chunkIndex);
                     saveMetadata(id, fileInfo);
+
+                    // Track upload bytes against quota
+                    if (fileInfo.uploadKey) {
+                        const keyData = uploadKeys.get(fileInfo.uploadKey);
+                        if (keyData) {
+                            keyData.usedBytes += data.length;
+                            saveUploadKeys();
+                        }
+                    }
 
                     const progress = (fileInfo.chunksReceived.size / fileInfo.totalChunks * 100).toFixed(1);
                     console.log(`Chunk ${chunkIndex}/${fileInfo.totalChunks - 1} received for ${id} (${progress}%)`);
@@ -503,6 +596,16 @@ const server = http.createServer(async (req, res) => {
                 // Let nginx serve the file directly (near-zero CPU)
                 try {
                     const stat = await fs.promises.stat(chunkPath);
+
+                    // Track download bytes against quota
+                    if (fileInfo.uploadKey) {
+                        const keyData = uploadKeys.get(fileInfo.uploadKey);
+                        if (keyData) {
+                            keyData.usedBytes += stat.size;
+                            saveUploadKeys();
+                        }
+                    }
+
                     res.writeHead(200, {
                         'X-Accel-Redirect': `/internal-chunks/${id}/chunk_${chunkIndex}`,
                         'Content-Type': 'application/octet-stream',
@@ -517,6 +620,16 @@ const server = http.createServer(async (req, res) => {
                 // Stream directly from Node.js (fallback)
                 try {
                     const stat = await fs.promises.stat(chunkPath);
+
+                    // Track download bytes against quota
+                    if (fileInfo.uploadKey) {
+                        const keyData = uploadKeys.get(fileInfo.uploadKey);
+                        if (keyData) {
+                            keyData.usedBytes += stat.size;
+                            saveUploadKeys();
+                        }
+                    }
+
                     res.writeHead(200, {
                         'Content-Length': stat.size,
                         'Content-Type': 'application/octet-stream',
@@ -758,6 +871,194 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
+        // === UPLOAD KEY ADMIN APIs ===
+
+        // POST /api/admin/keys - create new upload key
+        if (method === 'POST' && pathname === '/api/admin/keys') {
+            if (!verifySession(req)) {
+                return sendJson(res, 401, { error: 'Unauthorized' });
+            }
+
+            try {
+                const body = await readJsonBody(req);
+                const { quotaGB, label } = body;
+
+                if (!quotaGB || quotaGB <= 0) {
+                    return sendJson(res, 400, { error: 'Invalid quota' });
+                }
+
+                const key = generateUploadKey();
+                const keyData = {
+                    label: label || '',
+                    quotaBytes: Math.round(quotaGB * 1024 * 1024 * 1024),
+                    usedBytes: 0,
+                    createdAt: Date.now(),
+                    uploads: []
+                };
+
+                uploadKeys.set(key, keyData);
+                saveUploadKeys();
+
+                console.log(`Created upload key: ${key} (${quotaGB}GB, label: "${label || ''}")`);
+                return sendJson(res, 200, { key, ...keyData });
+
+            } catch (err) {
+                return sendJson(res, 500, { error: err.message });
+            }
+        }
+
+        // GET /api/admin/keys - list all upload keys with their uploads
+        if (method === 'GET' && pathname === '/api/admin/keys') {
+            if (!verifySession(req)) {
+                return sendJson(res, 401, { error: 'Unauthorized' });
+            }
+
+            const keys = [];
+            for (const [key, data] of uploadKeys) {
+                // Get upload details for this key
+                const uploads = data.uploads.map(uploadId => {
+                    const info = files.get(uploadId);
+                    if (!info) return null;
+                    const chunksReceived = info.chunksReceived instanceof Set
+                        ? info.chunksReceived.size
+                        : (Array.isArray(info.chunksReceived) ? info.chunksReceived.length : 0);
+                    return {
+                        id: uploadId,
+                        filename: info.filename,
+                        size: info.size,
+                        totalChunks: info.totalChunks,
+                        chunksReceived,
+                        createdAt: info.createdAt || 0
+                    };
+                }).filter(u => u !== null);
+
+                keys.push({
+                    key,
+                    label: data.label || '',
+                    quotaBytes: data.quotaBytes,
+                    usedBytes: data.usedBytes,
+                    createdAt: data.createdAt,
+                    uploads
+                });
+            }
+
+            return sendJson(res, 200, { keys });
+        }
+
+        // DELETE /api/admin/keys/:key - delete an upload key
+        const deleteKeyMatch = pathname.match(/^\/api\/admin\/keys\/(.+)$/);
+        if (method === 'DELETE' && deleteKeyMatch) {
+            if (!verifySession(req)) {
+                return sendJson(res, 401, { error: 'Unauthorized' });
+            }
+
+            const key = deleteKeyMatch[1];
+            const keyData = uploadKeys.get(key);
+            if (!keyData) {
+                return sendJson(res, 404, { error: 'Key not found' });
+            }
+
+            // Delete all uploads associated with this key
+            for (const uploadId of keyData.uploads) {
+                const fileInfo = files.get(uploadId);
+                if (fileInfo) {
+                    try {
+                        const fileDir = path.join(UPLOAD_DIR, uploadId);
+                        fs.rmSync(fileDir, { recursive: true, force: true });
+                        files.delete(uploadId);
+                        console.log(`Deleted upload: ${uploadId} - ${fileInfo.filename}`);
+                    } catch (err) {
+                        console.error(`Failed to delete upload ${uploadId}:`, err);
+                    }
+                }
+            }
+
+            uploadKeys.delete(key);
+            saveUploadKeys();
+
+            // Also invalidate any sessions using this key
+            for (const [token, session] of keySessions) {
+                if (session.key === key) {
+                    keySessions.delete(token);
+                }
+            }
+
+            console.log(`Deleted upload key: ${key}`);
+            return sendJson(res, 200, { success: true });
+        }
+
+        // === UPLOAD KEY USER APIs ===
+
+        // POST /api/key/login - login with upload key
+        if (method === 'POST' && pathname === '/api/key/login') {
+            try {
+                const body = await readJsonBody(req);
+                const { key } = body;
+
+                const keyData = uploadKeys.get(key);
+                if (!keyData) {
+                    return sendJson(res, 401, { error: 'Invalid upload key' });
+                }
+
+                // Check if quota is exhausted
+                if (keyData.usedBytes >= keyData.quotaBytes) {
+                    return sendJson(res, 403, { error: 'Quota exhausted' });
+                }
+
+                // Create session
+                const token = crypto.randomBytes(32).toString('hex');
+                keySessions.set(token, { key, createdAt: Date.now() });
+
+                // Set cookie
+                res.setHeader('Set-Cookie', `upload_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${KEY_SESSION_DURATION / 1000}`);
+
+                return sendJson(res, 200, {
+                    success: true,
+                    label: keyData.label,
+                    quotaBytes: keyData.quotaBytes,
+                    usedBytes: keyData.usedBytes,
+                    remainingBytes: keyData.quotaBytes - keyData.usedBytes
+                });
+
+            } catch (err) {
+                return sendJson(res, 500, { error: err.message });
+            }
+        }
+
+        // POST /api/key/logout - logout from upload key session
+        if (method === 'POST' && pathname === '/api/key/logout') {
+            const cookies = req.headers.cookie?.split(';').reduce((acc, c) => {
+                const [k, v] = c.trim().split('=');
+                acc[k] = v;
+                return acc;
+            }, {}) || {};
+
+            const token = cookies['upload_session'];
+            if (token) {
+                keySessions.delete(token);
+            }
+
+            // Clear cookie
+            res.setHeader('Set-Cookie', 'upload_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+            return sendJson(res, 200, { success: true });
+        }
+
+        // GET /api/key/status - check upload key session status
+        if (method === 'GET' && pathname === '/api/key/status') {
+            const keySession = verifyKeySession(req);
+            if (!keySession) {
+                return sendJson(res, 200, { loggedIn: false });
+            }
+
+            return sendJson(res, 200, {
+                loggedIn: true,
+                label: keySession.label || '',
+                quotaBytes: keySession.quotaBytes,
+                usedBytes: keySession.usedBytes,
+                remainingBytes: keySession.quotaBytes - keySession.usedBytes
+            });
+        }
+
         // GET /api/admin/uploads - list all uploads
         if (method === 'GET' && pathname === '/api/admin/uploads') {
             if (!verifySession(req)) {
@@ -810,6 +1111,18 @@ const server = http.createServer(async (req, res) => {
                 fs.rmSync(fileDir, { recursive: true, force: true });
                 files.delete(id);
 
+                // Update the upload key that owns this upload
+                for (const [key, keyData] of uploadKeys) {
+                    const idx = keyData.uploads.indexOf(id);
+                    if (idx !== -1) {
+                        keyData.uploads.splice(idx, 1);
+                        // Subtract the file size from usedBytes
+                        keyData.usedBytes = Math.max(0, keyData.usedBytes - fileInfo.size);
+                        saveUploadKeys();
+                        break;
+                    }
+                }
+
                 console.log(`Deleted upload: ${id} - ${fileInfo.filename}`);
                 return sendJson(res, 200, { success: true });
             } catch (err) {
@@ -858,8 +1171,9 @@ const server = http.createServer(async (req, res) => {
     }
 });
 
-// Load existing files and start server
+// Load existing files and upload keys, then start server
 loadFilesFromDisk();
+loadUploadKeys();
 
 server.listen(PORT, () => {
     console.log(`Sendinator running on http://localhost:${PORT}`);

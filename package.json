@@ -1,6 +1,6 @@
 {
   "name": "sendinator",
-  "version": "2.9.0",
+  "version": "3.0.0",
   "type": "module",
   "description": "Chunked file sharing with progressive downloads",
   "main": "server.js",

@@ -22,6 +22,7 @@
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
+        h2 { margin: 0 0 15px 0; color: #fff; font-size: 1.3em; }
         .header {
             display: flex;
             justify-content: space-between;
@@ -48,14 +49,8 @@
             padding: 40px;
             text-align: center;
         }
-        .auth-container h2 {
-            margin: 0 0 10px 0;
-            color: #fff;
-        }
-        .auth-container p {
-            color: #888;
-            margin-bottom: 30px;
-        }
+        .auth-container h2 { margin: 0 0 10px 0; }
+        .auth-container p { color: #888; margin-bottom: 30px; }
         .auth-btn {
             display: block;
             width: 100%;
@@ -68,154 +63,161 @@
             font-weight: 600;
             cursor: pointer;
         }
-        .auth-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
-        }
-        .auth-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-        .auth-error {
-            color: #ef4444;
-            margin-top: 15px;
-        }
+        .auth-btn:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
+        .auth-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .auth-error { color: #ef4444; margin-top: 15px; }
 
         /* Admin panel */
         .admin-panel { display: none; }
         .admin-panel.active { display: block; }
 
-        .controls {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-        .search-box {
-            flex: 1;
-            min-width: 200px;
-            padding: 12px 16px;
+        /* Create key form */
+        .create-key-section {
             background: #252542;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .create-key-form {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group label { font-size: 0.85em; color: #888; }
+        .form-group input {
+            padding: 10px 14px;
+            background: #1a1a2e;
             border: 1px solid #444;
             border-radius: 8px;
             color: #fff;
             font-size: 1em;
         }
-        .search-box:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        .search-box::placeholder { color: #666; }
-        .refresh-btn {
-            padding: 12px 20px;
-            background: #252542;
-            border: 1px solid #444;
+        .form-group input:focus { outline: none; border-color: #667eea; }
+        .create-btn {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
             border-radius: 8px;
-            color: #888;
+            font-weight: 600;
             cursor: pointer;
-            font-size: 1em;
         }
-        .refresh-btn:hover {
-            border-color: #667eea;
-            color: #667eea;
-        }
+        .create-btn:hover { background: #5a6fd6; }
 
-        /* Table */
-        .table-container {
+        /* Key card */
+        .key-card {
             background: #252542;
             border-radius: 12px;
+            margin-bottom: 12px;
             overflow: hidden;
         }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        th, td {
-            padding: 12px 16px;
-            text-align: left;
-            border-bottom: 1px solid #333;
-        }
-        th {
-            background: #1a1a2e;
-            color: #888;
-            font-weight: 600;
-            font-size: 0.85em;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+        .key-header {
+            display: flex;
+            align-items: center;
+            padding: 16px 20px;
             cursor: pointer;
-            user-select: none;
+            gap: 15px;
         }
-        th:hover { color: #667eea; }
-        th.sorted-asc::after { content: ' ▲'; }
-        th.sorted-desc::after { content: ' ▼'; }
-        tr:hover { background: rgba(102, 126, 234, 0.1); }
-        .filename {
-            max-width: 300px;
+        .key-header:hover { background: rgba(102, 126, 234, 0.1); }
+        .key-toggle {
+            font-size: 0.9em;
+            color: #667eea;
+            width: 20px;
+            transition: transform 0.2s;
+        }
+        .key-card.expanded .key-toggle { transform: rotate(90deg); }
+        .key-info { flex: 1; }
+        .key-label { font-weight: 600; font-size: 1.1em; }
+        .key-label .key-string { font-family: monospace; font-size: 0.85em; color: #888; margin-left: 10px; }
+        .key-meta { font-size: 0.85em; color: #888; margin-top: 4px; }
+        .key-quota {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+        }
+        .quota-bar {
+            width: 150px;
+            height: 6px;
+            background: #1a1a2e;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .quota-fill {
+            height: 100%;
+            background: #10b981;
+            transition: width 0.3s;
+        }
+        .quota-fill.warning { background: #f59e0b; }
+        .quota-fill.danger { background: #ef4444; }
+        .quota-text { font-size: 0.8em; color: #888; }
+        .key-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .copy-key-btn, .delete-key-btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            cursor: pointer;
+            border: 1px solid;
+        }
+        .copy-key-btn { background: transparent; border-color: #667eea; color: #667eea; }
+        .copy-key-btn:hover { background: #667eea; color: white; }
+        .delete-key-btn { background: transparent; border-color: #ef4444; color: #ef4444; }
+        .delete-key-btn:hover { background: #ef4444; color: white; }
+
+        /* Key uploads */
+        .key-uploads {
+            display: none;
+            border-top: 1px solid #333;
+            padding: 15px 20px;
+            background: #1e1e38;
+        }
+        .key-card.expanded .key-uploads { display: block; }
+        .upload-row {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #333;
+            gap: 15px;
+        }
+        .upload-row:last-child { border-bottom: none; }
+        .upload-filename {
+            flex: 1;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        .progress-cell {
-            width: 100px;
-        }
+        .upload-size { color: #888; font-size: 0.9em; min-width: 80px; }
+        .upload-progress { min-width: 100px; }
         .progress-bar {
             height: 6px;
             background: #1a1a2e;
             border-radius: 3px;
             overflow: hidden;
         }
-        .progress-fill {
-            height: 100%;
-            background: #ef4444;
-        }
-        .progress-fill.complete {
-            background: #10b981;
-        }
-        .progress-text {
+        .progress-fill { height: 100%; background: #ef4444; }
+        .progress-fill.complete { background: #10b981; }
+        .progress-text { font-size: 0.75em; color: #888; margin-top: 2px; }
+        .upload-actions { display: flex; gap: 8px; }
+        .upload-actions button {
+            padding: 4px 10px;
+            border-radius: 4px;
             font-size: 0.8em;
-            color: #888;
-            margin-top: 4px;
-        }
-        .size-cell, .date-cell {
-            white-space: nowrap;
-            color: #888;
-        }
-        .actions-cell {
-            width: 100px;
-        }
-        .delete-btn {
-            padding: 6px 12px;
-            background: transparent;
-            border: 1px solid #ef4444;
-            border-radius: 6px;
-            color: #ef4444;
             cursor: pointer;
-            font-size: 0.85em;
-        }
-        .delete-btn:hover {
-            background: #ef4444;
-            color: white;
-        }
-        .copy-btn {
-            padding: 6px 12px;
+            border: 1px solid;
             background: transparent;
-            border: 1px solid #667eea;
-            border-radius: 6px;
-            color: #667eea;
-            cursor: pointer;
-            font-size: 0.85em;
-            margin-right: 8px;
         }
-        .copy-btn:hover {
-            background: #667eea;
-            color: white;
-        }
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #666;
-        }
+        .upload-copy { border-color: #667eea; color: #667eea; }
+        .upload-copy:hover { background: #667eea; color: white; }
+        .upload-delete { border-color: #ef4444; color: #ef4444; }
+        .upload-delete:hover { background: #ef4444; color: white; }
+        .no-uploads { color: #666; font-style: italic; padding: 10px 0; }
+
+        /* Stats */
         .stats {
             display: flex;
             gap: 20px;
@@ -226,26 +228,49 @@
             background: #252542;
             padding: 15px 20px;
             border-radius: 10px;
-            min-width: 150px;
+            min-width: 120px;
         }
-        .stat-value {
-            font-size: 1.5em;
-            font-weight: 600;
-            color: #fff;
+        .stat-value { font-size: 1.5em; font-weight: 600; color: #fff; }
+        .stat-label { font-size: 0.85em; color: #888; margin-top: 4px; }
+
+        .empty-state { text-align: center; padding: 40px 20px; color: #666; }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
         }
-        .stat-label {
-            font-size: 0.85em;
+        .refresh-btn {
+            padding: 8px 16px;
+            background: #252542;
+            border: 1px solid #444;
+            border-radius: 8px;
             color: #888;
-            margin-top: 4px;
+            cursor: pointer;
         }
+        .refresh-btn:hover { border-color: #667eea; color: #667eea; }
         .version { position: fixed; bottom: 10px; right: 10px; color: #444; font-size: 0.75em; }
+        .new-key-display {
+            margin-top: 15px;
+            padding: 15px;
+            background: #1a1a2e;
+            border-radius: 8px;
+            border: 1px solid #10b981;
+        }
+        .new-key-display label { display: block; color: #10b981; margin-bottom: 8px; font-size: 0.9em; }
+        .new-key-value {
+            font-family: monospace;
+            font-size: 1.2em;
+            color: #fff;
+            word-break: break-all;
+        }
     </style>
 </head>
 <body>
     <!-- Auth Section -->
     <div class="auth-container" id="authContainer">
         <h2 id="authTitle">Admin Setup</h2>
-        <p id="authDesc">Create a passkey to secure your admin panel. This uses your device's biometrics or security key.</p>
+        <p id="authDesc">Create a passkey to secure your admin panel.</p>
         <button class="auth-btn" id="authBtn">Create Passkey</button>
         <div class="auth-error" id="authError"></div>
     </div>
@@ -260,7 +285,11 @@
             </div>
         </div>
 
-        <div class="stats" id="stats">
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="totalKeys">0</div>
+                <div class="stat-label">Upload Keys</div>
+            </div>
             <div class="stat-card">
                 <div class="stat-value" id="totalFiles">0</div>
                 <div class="stat-label">Total Files</div>
@@ -269,44 +298,44 @@
                 <div class="stat-value" id="totalSize">0 B</div>
                 <div class="stat-label">Total Size</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-value" id="completeFiles">0</div>
-                <div class="stat-label">Complete</div>
+        </div>
+
+        <div class="create-key-section">
+            <h2>Create Upload Key</h2>
+            <div class="create-key-form">
+                <div class="form-group">
+                    <label>Label (optional)</label>
+                    <input type="text" id="keyLabel" placeholder="e.g., John's key">
+                </div>
+                <div class="form-group">
+                    <label>Quota (GB)</label>
+                    <input type="number" id="keyQuota" value="10" min="1" step="1" style="width: 100px;">
+                </div>
+                <button class="create-btn" onclick="createKey()">Create Key</button>
+            </div>
+            <div class="new-key-display" id="newKeyDisplay" style="display: none;">
+                <label>New Upload Key (copy it now - won't be shown again!):</label>
+                <div class="new-key-value" id="newKeyValue"></div>
             </div>
         </div>
 
-        <div class="controls">
-            <input type="text" class="search-box" id="searchBox" placeholder="Search filenames...">
-            <button class="refresh-btn" id="refreshBtn">Refresh</button>
+        <div class="section-header">
+            <h2>Upload Keys</h2>
+            <button class="refresh-btn" onclick="loadKeys()">Refresh</button>
         </div>
 
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th data-sort="filename">Filename</th>
-                        <th data-sort="size">Size</th>
-                        <th data-sort="progress">Progress</th>
-                        <th data-sort="createdAt">Date</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="uploadsList">
-                </tbody>
-            </table>
-            <div class="empty-state" id="emptyState" style="display: none;">
-                No uploads yet
-            </div>
+        <div id="keysList"></div>
+        <div class="empty-state" id="emptyState" style="display: none;">
+            No upload keys yet. Create one above to get started.
         </div>
     </div>
 
-    <div class="version">v2.9.0</div>
+    <div class="version">v3.0.0</div>
 
     <script>
-        let uploads = [];
-        let sortColumn = 'createdAt';
-        let sortDirection = 'desc';
+        let keys = [];
         let sessionToken = null;
+        let expandedKeys = new Set();
 
         const authContainer = document.getElementById('authContainer');
         const adminPanel = document.getElementById('adminPanel');
@@ -314,17 +343,14 @@
         const authDesc = document.getElementById('authDesc');
         const authBtn = document.getElementById('authBtn');
         const authError = document.getElementById('authError');
-        const searchBox = document.getElementById('searchBox');
-        const refreshBtn = document.getElementById('refreshBtn');
-        const uploadsList = document.getElementById('uploadsList');
+        const keysList = document.getElementById('keysList');
         const emptyState = document.getElementById('emptyState');
 
         // Check auth status on load
         async function checkAuth() {
-            // Check if WebAuthn is available
             if (!window.PublicKeyCredential) {
                 authTitle.textContent = 'Not Supported';
-                authDesc.textContent = 'WebAuthn is not available. You need HTTPS or localhost to use passkeys.';
+                authDesc.textContent = 'WebAuthn is not available. You need HTTPS or localhost.';
                 authBtn.style.display = 'none';
                 return;
             }
@@ -334,15 +360,13 @@
                 const data = await res.json();
 
                 if (!data.passkeyExists) {
-                    // First time setup
                     authTitle.textContent = 'Admin Setup';
-                    authDesc.textContent = 'Create a passkey to secure your admin panel. This uses your device\'s biometrics or security key.';
+                    authDesc.textContent = 'Create a passkey to secure your admin panel.';
                     authBtn.textContent = 'Create Passkey';
                     authBtn.onclick = registerPasskey;
                 } else {
-                    // Login required
                     authTitle.textContent = 'Admin Login';
-                    authDesc.textContent = 'Authenticate with your passkey to access the admin panel.';
+                    authDesc.textContent = 'Authenticate with your passkey.';
                     authBtn.textContent = 'Login with Passkey';
                     authBtn.onclick = loginPasskey;
                 }
@@ -351,24 +375,17 @@
             }
         }
 
-        // WebAuthn Registration
         async function registerPasskey() {
             authBtn.disabled = true;
             authError.textContent = '';
-
             try {
-                // Get challenge from server
                 const optionsRes = await fetch('/api/admin/register/start', { method: 'POST' });
                 const options = await optionsRes.json();
-
-                // Convert base64 to ArrayBuffer
                 options.challenge = base64ToBuffer(options.challenge);
                 options.user.id = base64ToBuffer(options.user.id);
 
-                // Create credential
                 const credential = await navigator.credentials.create({ publicKey: options });
 
-                // Send to server
                 const verifyRes = await fetch('/api/admin/register/finish', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -393,33 +410,24 @@
             } catch (err) {
                 authError.textContent = err.message || 'Registration failed';
             }
-
             authBtn.disabled = false;
         }
 
-        // WebAuthn Login
         async function loginPasskey() {
             authBtn.disabled = true;
             authError.textContent = '';
-
             try {
-                // Get challenge from server
                 const optionsRes = await fetch('/api/admin/login/start', { method: 'POST' });
                 const options = await optionsRes.json();
-
-                // Convert base64 to ArrayBuffer
                 options.challenge = base64ToBuffer(options.challenge);
                 if (options.allowCredentials) {
                     options.allowCredentials = options.allowCredentials.map(c => ({
-                        ...c,
-                        id: base64ToBuffer(c.id)
+                        ...c, id: base64ToBuffer(c.id)
                     }));
                 }
 
-                // Get credential
                 const credential = await navigator.credentials.get({ publicKey: options });
 
-                // Send to server
                 const verifyRes = await fetch('/api/admin/login/finish', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -446,122 +454,171 @@
             } catch (err) {
                 authError.textContent = err.message || 'Login failed';
             }
-
             authBtn.disabled = false;
         }
 
         function showAdminPanel() {
             authContainer.style.display = 'none';
             adminPanel.classList.add('active');
-            loadUploads();
+            loadKeys();
         }
 
-        async function loadUploads() {
+        async function loadKeys() {
             try {
-                const res = await fetch('/api/admin/uploads', {
+                const res = await fetch('/api/admin/keys', {
                     headers: { 'Authorization': `Bearer ${sessionToken}` }
                 });
                 if (res.status === 401) {
-                    // Token expired, reload
                     location.reload();
                     return;
                 }
                 const data = await res.json();
-                uploads = data.uploads;
-                updateStats(data);
-                renderTable();
+                keys = data.keys;
+                updateStats();
+                renderKeys();
             } catch (err) {
-                console.error('Failed to load uploads:', err);
+                console.error('Failed to load keys:', err);
             }
         }
 
-        function updateStats(data) {
-            document.getElementById('totalFiles').textContent = data.uploads.length;
-            document.getElementById('totalSize').textContent = formatBytes(data.totalSize);
-            document.getElementById('completeFiles').textContent = data.completeCount;
+        function updateStats() {
+            let totalFiles = 0;
+            let totalSize = 0;
+            for (const k of keys) {
+                totalFiles += k.uploads.length;
+                for (const u of k.uploads) {
+                    totalSize += u.size;
+                }
+            }
+            document.getElementById('totalKeys').textContent = keys.length;
+            document.getElementById('totalFiles').textContent = totalFiles;
+            document.getElementById('totalSize').textContent = formatBytes(totalSize);
         }
 
-        function renderTable() {
-            const searchTerm = searchBox.value.toLowerCase();
-            let filtered = uploads.filter(u =>
-                u.filename.toLowerCase().includes(searchTerm)
-            );
-
-            // Sort
-            filtered.sort((a, b) => {
-                let aVal = a[sortColumn];
-                let bVal = b[sortColumn];
-
-                if (sortColumn === 'progress') {
-                    aVal = a.totalChunks > 0 ? a.chunksReceived / a.totalChunks : 0;
-                    bVal = b.totalChunks > 0 ? b.chunksReceived / b.totalChunks : 0;
-                }
-
-                if (typeof aVal === 'string') {
-                    aVal = aVal.toLowerCase();
-                    bVal = bVal.toLowerCase();
-                }
-
-                if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-                if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-                return 0;
-            });
-
-            // Update sort indicators
-            document.querySelectorAll('th[data-sort]').forEach(th => {
-                th.classList.remove('sorted-asc', 'sorted-desc');
-                if (th.dataset.sort === sortColumn) {
-                    th.classList.add(sortDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
-                }
-            });
-
-            if (filtered.length === 0) {
-                uploadsList.innerHTML = '';
+        function renderKeys() {
+            if (keys.length === 0) {
+                keysList.innerHTML = '';
                 emptyState.style.display = 'block';
                 return;
             }
-
             emptyState.style.display = 'none';
-            uploadsList.innerHTML = filtered.map(u => {
-                const progress = u.totalChunks > 0 ? (u.chunksReceived / u.totalChunks * 100) : 0;
-                const isComplete = u.totalChunks > 0 && u.chunksReceived === u.totalChunks;
+
+            keysList.innerHTML = keys.map(k => {
+                const usedPercent = k.quotaBytes > 0 ? (k.usedBytes / k.quotaBytes * 100) : 0;
+                const quotaClass = usedPercent > 90 ? 'danger' : usedPercent > 70 ? 'warning' : '';
+                const isExpanded = expandedKeys.has(k.key);
+
                 return `
-                    <tr>
-                        <td class="filename" title="${escapeHtml(u.filename)}">${escapeHtml(u.filename)}</td>
-                        <td class="size-cell">${formatBytes(u.size)}</td>
-                        <td class="progress-cell">
-                            <div class="progress-bar">
-                                <div class="progress-fill ${isComplete ? 'complete' : ''}" style="width: ${progress}%"></div>
+                    <div class="key-card ${isExpanded ? 'expanded' : ''}" data-key="${k.key}">
+                        <div class="key-header" onclick="toggleKey('${k.key}')">
+                            <div class="key-toggle">&#9654;</div>
+                            <div class="key-info">
+                                <div class="key-label">
+                                    ${escapeHtml(k.label) || '(No label)'}
+                                    <span class="key-string">${k.key.slice(0, 8)}...</span>
+                                </div>
+                                <div class="key-meta">${k.uploads.length} file${k.uploads.length !== 1 ? 's' : ''} &bull; Created ${formatDate(k.createdAt)}</div>
                             </div>
-                            <div class="progress-text">${u.chunksReceived}/${u.totalChunks}</div>
-                        </td>
-                        <td class="date-cell">${formatDate(u.createdAt)}</td>
-                        <td class="actions-cell">
-                            <button class="copy-btn" onclick="copyLink('${u.id}')">Copy</button>
-                            <button class="delete-btn" onclick="deleteUpload('${u.id}')">Delete</button>
-                        </td>
-                    </tr>
+                            <div class="key-quota">
+                                <div class="quota-bar">
+                                    <div class="quota-fill ${quotaClass}" style="width: ${Math.min(usedPercent, 100)}%"></div>
+                                </div>
+                                <div class="quota-text">${formatBytes(k.usedBytes)} / ${formatBytes(k.quotaBytes)}</div>
+                            </div>
+                            <div class="key-actions" onclick="event.stopPropagation()">
+                                <button class="copy-key-btn" onclick="copyKey('${k.key}')">Copy Key</button>
+                                <button class="delete-key-btn" onclick="deleteKey('${k.key}')">Delete</button>
+                            </div>
+                        </div>
+                        <div class="key-uploads">
+                            ${k.uploads.length === 0 ? '<div class="no-uploads">No uploads yet</div>' : k.uploads.map(u => {
+                                const progress = u.totalChunks > 0 ? (u.chunksReceived / u.totalChunks * 100) : 0;
+                                const isComplete = u.totalChunks > 0 && u.chunksReceived === u.totalChunks;
+                                return `
+                                    <div class="upload-row">
+                                        <div class="upload-filename" title="${escapeHtml(u.filename)}">${escapeHtml(u.filename)}</div>
+                                        <div class="upload-size">${formatBytes(u.size)}</div>
+                                        <div class="upload-progress">
+                                            <div class="progress-bar">
+                                                <div class="progress-fill ${isComplete ? 'complete' : ''}" style="width: ${progress}%"></div>
+                                            </div>
+                                            <div class="progress-text">${u.chunksReceived}/${u.totalChunks}</div>
+                                        </div>
+                                        <div class="upload-actions">
+                                            <button class="upload-copy" onclick="copyLink('${u.id}')">Copy Link</button>
+                                            <button class="upload-delete" onclick="deleteUpload('${u.id}', '${k.key}')">Delete</button>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
                 `;
             }).join('');
         }
 
-        async function deleteUpload(id) {
-            if (!confirm('Delete this upload? This cannot be undone.')) return;
+        function toggleKey(key) {
+            if (expandedKeys.has(key)) {
+                expandedKeys.delete(key);
+            } else {
+                expandedKeys.add(key);
+            }
+            renderKeys();
+        }
+
+        async function createKey() {
+            const label = document.getElementById('keyLabel').value;
+            const quotaGB = parseFloat(document.getElementById('keyQuota').value);
+
+            if (!quotaGB || quotaGB <= 0) {
+                alert('Please enter a valid quota');
+                return;
+            }
 
             try {
-                const res = await fetch(`/api/admin/uploads/${id}`, {
+                const res = await fetch('/api/admin/keys', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${sessionToken}`
+                    },
+                    body: JSON.stringify({ label, quotaGB })
+                });
+
+                const data = await res.json();
+                if (data.key) {
+                    document.getElementById('newKeyValue').textContent = data.key;
+                    document.getElementById('newKeyDisplay').style.display = 'block';
+                    document.getElementById('keyLabel').value = '';
+                    loadKeys();
+                } else {
+                    alert(data.error || 'Failed to create key');
+                }
+            } catch (err) {
+                alert('Failed to create key: ' + err.message);
+            }
+        }
+
+        function copyKey(key) {
+            navigator.clipboard.writeText(key).then(() => {
+                const btn = event.target;
+                const orig = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = orig, 1500);
+            });
+        }
+
+        async function deleteKey(key) {
+            if (!confirm('Delete this upload key and all its uploads? This cannot be undone.')) return;
+
+            try {
+                const res = await fetch(`/api/admin/keys/${key}`, {
                     method: 'DELETE',
                     headers: { 'Authorization': `Bearer ${sessionToken}` }
                 });
                 if (res.ok) {
-                    uploads = uploads.filter(u => u.id !== id);
-                    renderTable();
-                    // Update stats
-                    const totalSize = uploads.reduce((sum, u) => sum + u.size, 0);
-                    const completeCount = uploads.filter(u => u.totalChunks > 0 && u.chunksReceived === u.totalChunks).length;
-                    document.getElementById('totalFiles').textContent = uploads.length;
-                    document.getElementById('totalSize').textContent = formatBytes(totalSize);
-                    document.getElementById('completeFiles').textContent = completeCount;
+                    expandedKeys.delete(key);
+                    loadKeys();
                 }
             } catch (err) {
                 alert('Delete failed: ' + err.message);
@@ -570,12 +627,28 @@
 
         function copyLink(id) {
             const url = `${window.location.origin}/download/${id}`;
-            const btn = event.target;
             navigator.clipboard.writeText(url).then(() => {
+                const btn = event.target;
                 const orig = btn.textContent;
                 btn.textContent = 'Copied!';
                 setTimeout(() => btn.textContent = orig, 1500);
             });
+        }
+
+        async function deleteUpload(id, key) {
+            if (!confirm('Delete this upload? This cannot be undone.')) return;
+
+            try {
+                const res = await fetch(`/api/admin/uploads/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${sessionToken}` }
+                });
+                if (res.ok) {
+                    loadKeys();
+                }
+            } catch (err) {
+                alert('Delete failed: ' + err.message);
+            }
         }
 
         function logout() {
@@ -584,23 +657,6 @@
             authContainer.style.display = 'block';
             checkAuth();
         }
-
-        // Event listeners
-        searchBox.addEventListener('input', renderTable);
-        refreshBtn.addEventListener('click', loadUploads);
-
-        document.querySelectorAll('th[data-sort]').forEach(th => {
-            th.addEventListener('click', () => {
-                const col = th.dataset.sort;
-                if (sortColumn === col) {
-                    sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-                } else {
-                    sortColumn = col;
-                    sortDirection = 'asc';
-                }
-                renderTable();
-            });
-        });
 
         // Helpers
         function formatBytes(bytes) {
@@ -618,6 +674,7 @@
         }
 
         function escapeHtml(str) {
+            if (!str) return '';
             const div = document.createElement('div');
             div.textContent = str;
             return div.innerHTML;
@@ -626,18 +683,14 @@
         function base64ToBuffer(base64) {
             const binary = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
             const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) {
-                bytes[i] = binary.charCodeAt(i);
-            }
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
             return bytes.buffer;
         }
 
         function bufferToBase64(buffer) {
             const bytes = new Uint8Array(buffer);
             let binary = '';
-            for (let i = 0; i < bytes.length; i++) {
-                binary += String.fromCharCode(bytes[i]);
-            }
+            for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
             return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
         }
 
