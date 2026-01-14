@@ -325,9 +325,15 @@
                     }
                 }
 
-                // Show direct link for complete files (all browsers)
+                // Show direct link section
                 if (fileInfo.complete) {
                     directLink.href = `/api/download/${fileId}`;
+                    directLinkContainer.innerHTML = `<a href="/api/download/${fileId}" target="_blank">Direct link</a>`;
+                    directLinkContainer.style.display = 'block';
+                } else if (!supportsProgressiveDownload) {
+                    // Unsupported browser + still uploading: show placeholder with progress
+                    const pct = (fileInfo.chunksReceived / fileInfo.totalChunks * 100).toFixed(0);
+                    directLinkContainer.innerHTML = `Direct link will appear here. File is still uploading (${pct}%)`;
                     directLinkContainer.style.display = 'block';
                 }
             } catch (err) {
