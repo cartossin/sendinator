@@ -734,6 +734,9 @@
         }
 
         function toggleKey(key) {
+            // Don't toggle if we're editing this key's quota
+            if (editingQuotaKey === key) return;
+
             if (expandedKeys.has(key)) {
                 expandedKeys.delete(key);
             } else {
