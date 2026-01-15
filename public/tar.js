@@ -135,10 +135,7 @@ function createTarEnd() {
 }
 
 // Create an async generator that yields TAR data chunks
-// Simpler and more reliable than ReadableStream with pull()
 async function* createTarGenerator(files) {
-    const SMALL_FILE_THRESHOLD = 50 * 1024 * 1024; // 50MB - use arrayBuffer for smaller files
-
     for await (const item of files) {
         console.log('TAR processing:', item.path, item.isDirectory ? '(dir)' : item.file?.size + ' bytes');
 
@@ -153,20 +150,13 @@ async function* createTarGenerator(files) {
             continue;
         }
 
-        // Read and yield file content
+        // Stream file content
         try {
-            if (size < SMALL_FILE_THRESHOLD) {
-                // Small file - use arrayBuffer (simpler, more reliable)
-                const buffer = await item.file.arrayBuffer();
-                yield new Uint8Array(buffer);
-            } else {
-                // Large file - use streaming
-                const reader = item.file.stream().getReader();
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-                    yield value;
-                }
+            const reader = item.file.stream().getReader();
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                yield value;
             }
 
             // Pad to block boundary
