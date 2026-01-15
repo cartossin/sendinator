@@ -1,5 +1,3 @@
-# Not fully tested yet; use with caution
-
 # Sendinator
 
 Chunked file sharing with progressive downloads.
