@@ -13,38 +13,26 @@ Chunked file sharing with progressive downloads.
 
 ## Install
 
-### 1. Install required packages
-
 ```bash
+# Install required packages
 apt update && apt install -y git nodejs npm nginx
-```
 
-### 2. Clone and install
-
-```bash
+# Clone and install
 git clone https://github.com/cartossin/sendinator.git
 cd sendinator
 npm install
-```
 
-### 3. Set up nginx
-
-nginx serves chunk files directly for better performance.
-
-```bash
+# Set up nginx (serves chunk files directly for better performance)
 sudo ./setup-nginx.sh
-```
 
-### 4. Install PM2 and start
-
-```bash
+# Install PM2 and start
 npm install -g pm2
 pm2 start server.js --name sendinator
 pm2 save
 pm2 startup
 ```
 
-The server is now running. nginx listens on port 80.
+Done. nginx listens on port 80.
 
 ## Update
 
