@@ -139,7 +139,6 @@ function createTarEnd() {
 function createTarStream(files) {
     let fileIterator;
     let currentFile = null;
-    let currentReader = null;
     let headerSent = false;
     let ended = false;
 
@@ -167,7 +166,6 @@ function createTarStream(files) {
                     }
                     currentFile = value;
                     headerSent = false;
-                    currentReader = null;
                     console.log('TAR processing:', currentFile.path, currentFile.isDirectory ? '(dir)' : currentFile.file?.size + ' bytes');
                 }
 
@@ -185,35 +183,24 @@ function createTarStream(files) {
                         return;
                     }
 
-                    // Set up file reader
+                    // Read entire file content using arrayBuffer (more reliable than stream)
                     try {
-                        currentReader = currentFile.file.stream().getReader();
-                    } catch (streamErr) {
-                        console.error('Failed to create stream for file:', currentFile.path, streamErr);
-                        // Skip this file, enqueue padding for declared size
-                        const paddedSize = Math.ceil(size / TAR_BLOCK_SIZE) * TAR_BLOCK_SIZE;
-                        controller.enqueue(new Uint8Array(paddedSize));
-                        currentFile = null;
-                        return;
-                    }
-                    return;
-                }
+                        const buffer = await currentFile.file.arrayBuffer();
+                        controller.enqueue(new Uint8Array(buffer));
 
-                // Read and send file data
-                if (currentReader) {
-                    const { value, done } = await currentReader.read();
-                    if (done) {
-                        // File complete - pad to block boundary
-                        const fileSize = currentFile.file.size;
-                        const remainder = fileSize % TAR_BLOCK_SIZE;
+                        // Pad to block boundary
+                        const remainder = size % TAR_BLOCK_SIZE;
                         if (remainder > 0) {
                             controller.enqueue(new Uint8Array(TAR_BLOCK_SIZE - remainder));
                         }
-                        currentFile = null;
-                        currentReader = null;
-                        return;
+                    } catch (readErr) {
+                        console.error('Failed to read file:', currentFile.path, readErr);
+                        // Enqueue zeros for declared size to maintain TAR structure
+                        const paddedSize = Math.ceil(size / TAR_BLOCK_SIZE) * TAR_BLOCK_SIZE;
+                        controller.enqueue(new Uint8Array(paddedSize));
                     }
-                    controller.enqueue(value);
+                    currentFile = null;
+                    return;
                 }
             } catch (err) {
                 console.error('TAR stream pull error:', err, 'currentFile:', currentFile?.path);
