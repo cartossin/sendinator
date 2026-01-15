@@ -55,7 +55,6 @@ If you run [Nginx Proxy Manager](https://nginxproxymanager.com/) on your network
 
 1. Add a new proxy host pointing to this server's port 80
 2. Enable SSL with Let's Encrypt
-3. Enable WebSockets support
 
 ### Option 2: Direct SSL on nginx
 
