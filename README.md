@@ -88,25 +88,7 @@ To reset passkey: delete `/var/lib/sendinator/passkey.json` and restart.
 - Clearer visibility of upload completion status on download page (done vs still uploading)
 - Stale upload warning (no new chunks received in X time)
 
-### Upload Keys
-- Admin can issue upload keys with bandwidth limits (e.g., "50GB one-time upload")
-- Uploading requires a valid key
-- Once bandwidth limit reached, upload is auto-deleted
-- Prevents abuse, enables controlled sharing
-
 ### Upload Speed: Pipeline Architecture
 - Separate workers for receiving, hashing, writing
 - Decouple network I/O from CPU (hashing) from disk I/O
 - Could improve upload throughput significantly
-
-### Folder Upload: Tar Streaming
-- Client creates tar stream on-the-fly (pure JS, no library)
-- Tar is uncompressed - just concatenation with 512-byte headers
-- Streams through existing chunked upload
-- Download side: File System Access API writes files directly to disk
-- Resume support via IndexedDB
-- Browser support: Chrome, Edge, Opera
-
-### Firefox/Safari Fallback
-- Download: Fall back to direct browser download (single .tar file)
-- Upload: Standard file picker (no folder upload until APIs improve)
