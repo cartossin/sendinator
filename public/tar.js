@@ -134,77 +134,69 @@ function createTarEnd() {
     return new Uint8Array(TAR_BLOCK_SIZE * 2);
 }
 
-// Create a ReadableStream that produces TAR data from an async iterable of files
-// files: async iterable of { path: string, file: File | null (for dirs), isDirectory: boolean }
+// Create an async generator that yields TAR data chunks
+// Simpler and more reliable than ReadableStream with pull()
+async function* createTarGenerator(files) {
+    const SMALL_FILE_THRESHOLD = 50 * 1024 * 1024; // 50MB - use arrayBuffer for smaller files
+
+    for await (const item of files) {
+        console.log('TAR processing:', item.path, item.isDirectory ? '(dir)' : item.file?.size + ' bytes');
+
+        const size = item.isDirectory ? 0 : item.file.size;
+        const mtime = item.file?.lastModified || Date.now();
+
+        // Yield header
+        yield createTarHeader(item.path, size, item.isDirectory, mtime);
+
+        // Skip content for directories and empty files
+        if (item.isDirectory || size === 0) {
+            continue;
+        }
+
+        // Read and yield file content
+        try {
+            if (size < SMALL_FILE_THRESHOLD) {
+                // Small file - use arrayBuffer (simpler, more reliable)
+                const buffer = await item.file.arrayBuffer();
+                yield new Uint8Array(buffer);
+            } else {
+                // Large file - use streaming
+                const reader = item.file.stream().getReader();
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    yield value;
+                }
+            }
+
+            // Pad to block boundary
+            const remainder = size % TAR_BLOCK_SIZE;
+            if (remainder > 0) {
+                yield new Uint8Array(TAR_BLOCK_SIZE - remainder);
+            }
+        } catch (err) {
+            console.error('Failed to read file:', item.path, err);
+            // Yield zeros to maintain TAR structure
+            const paddedSize = Math.ceil(size / TAR_BLOCK_SIZE) * TAR_BLOCK_SIZE;
+            yield new Uint8Array(paddedSize);
+        }
+    }
+
+    // Yield TAR end marker
+    yield createTarEnd();
+}
+
+// Wrapper to create ReadableStream from generator (for compatibility)
 function createTarStream(files) {
-    let fileIterator;
-    let currentFile = null;
-    let headerSent = false;
-    let ended = false;
+    const generator = createTarGenerator(files);
 
     return new ReadableStream({
-        async start() {
-            fileIterator = files[Symbol.asyncIterator]();
-        },
-
         async pull(controller) {
-            try {
-                // If we've ended, close the stream
-                if (ended) {
-                    controller.close();
-                    return;
-                }
-
-                // If we need a new file
-                if (!currentFile) {
-                    const { value, done } = await fileIterator.next();
-                    if (done) {
-                        // End of files - send TAR end marker
-                        controller.enqueue(createTarEnd());
-                        ended = true;
-                        return;
-                    }
-                    currentFile = value;
-                    headerSent = false;
-                    console.log('TAR processing:', currentFile.path, currentFile.isDirectory ? '(dir)' : currentFile.file?.size + ' bytes');
-                }
-
-                // Send header if not sent yet
-                if (!headerSent) {
-                    const size = currentFile.isDirectory ? 0 : currentFile.file.size;
-                    const mtime = currentFile.file?.lastModified || Date.now();
-                    const header = createTarHeader(currentFile.path, size, currentFile.isDirectory, mtime);
-                    controller.enqueue(header);
-                    headerSent = true;
-
-                    // If directory or empty file, move to next file
-                    if (currentFile.isDirectory || size === 0) {
-                        currentFile = null;
-                        return;
-                    }
-
-                    // Read entire file content using arrayBuffer (more reliable than stream)
-                    try {
-                        const buffer = await currentFile.file.arrayBuffer();
-                        controller.enqueue(new Uint8Array(buffer));
-
-                        // Pad to block boundary
-                        const remainder = size % TAR_BLOCK_SIZE;
-                        if (remainder > 0) {
-                            controller.enqueue(new Uint8Array(TAR_BLOCK_SIZE - remainder));
-                        }
-                    } catch (readErr) {
-                        console.error('Failed to read file:', currentFile.path, readErr);
-                        // Enqueue zeros for declared size to maintain TAR structure
-                        const paddedSize = Math.ceil(size / TAR_BLOCK_SIZE) * TAR_BLOCK_SIZE;
-                        controller.enqueue(new Uint8Array(paddedSize));
-                    }
-                    currentFile = null;
-                    return;
-                }
-            } catch (err) {
-                console.error('TAR stream pull error:', err, 'currentFile:', currentFile?.path);
-                controller.error(err);
+            const { value, done } = await generator.next();
+            if (done) {
+                controller.close();
+            } else {
+                controller.enqueue(value);
             }
         }
     });
