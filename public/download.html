@@ -959,7 +959,12 @@
             } catch (err) {
                 if (err.name === 'AbortError') return; // User cancelled
                 status.className = 'status error';
-                status.textContent = 'Failed to select destination folder: ' + err.message;
+                // Chrome blocks certain "sensitive" folders like Downloads root
+                if (err.message.includes('system files') || err.message.includes('sensitive')) {
+                    status.textContent = 'Chrome blocked this folder. Create a new subfolder and select that instead.';
+                } else {
+                    status.textContent = 'Failed to select folder: ' + err.message;
+                }
                 return;
             }
 
