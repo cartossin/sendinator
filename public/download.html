@@ -315,8 +315,20 @@
                 }
 
                 // Handle based on browser support and file type
-                if (isArchive) {
-                    // Archives: direct download as .zip (all browsers)
+                if (supportsProgressiveDownload) {
+                    // Chrome/Edge - can start downloading immediately even if incomplete
+                    downloadBtn.disabled = false;
+                    if (fileInfo.complete) {
+                        downloadBtn.textContent = isArchive ? 'Download .zip' : 'Download';
+                        status.className = 'status complete';
+                        status.textContent = isArchive ? 'Ready to download - extract with your system\'s zip tool' : 'Ready to download';
+                    } else {
+                        downloadBtn.textContent = isArchive ? 'Start .zip Download' : 'Start Download';
+                        status.className = 'status waiting';
+                        status.textContent = 'You can start downloading now while upload continues';
+                    }
+                } else if (isArchive) {
+                    // Safari/Firefox + archive: must wait for complete, then direct download
                     if (fileInfo.complete) {
                         downloadBtn.disabled = false;
                         downloadBtn.textContent = 'Download .zip';
@@ -328,20 +340,8 @@
                         status.className = 'status waiting';
                         status.textContent = 'Waiting for upload to complete...';
                     }
-                } else if (supportsProgressiveDownload) {
-                    // Chrome/Edge - can start downloading immediately even if incomplete
-                    downloadBtn.disabled = false;
-                    if (fileInfo.complete) {
-                        downloadBtn.textContent = 'Download';
-                        status.className = 'status complete';
-                        status.textContent = 'Ready to download';
-                    } else {
-                        downloadBtn.textContent = 'Start Download';
-                        status.className = 'status waiting';
-                        status.textContent = 'You can start downloading now while upload continues';
-                    }
                 } else {
-                    // Safari/Firefox - grey out button, point to direct link
+                    // Safari/Firefox + single file - grey out button, point to direct link
                     downloadBtn.disabled = true;
                     downloadBtn.textContent = 'Download';
                     status.className = 'status warning';
@@ -385,22 +385,21 @@
         downloadBtn.addEventListener('click', startDownload);
 
         async function startDownload() {
-            // Archives: direct download
-            if (fileInfo.type === 'archive') {
-                window.location.href = `/api/download/${fileId}`;
-                return;
-            }
-
-            // Use fallback for unsupported browsers
+            // Use fallback (direct download) for unsupported browsers
             if (!supportsProgressiveDownload) {
                 window.location.href = `/api/download/${fileId}`;
                 return;
             }
 
+            // Chrome/Edge: use managed download for both single files and archives
+            const suggestedName = fileInfo.type === 'archive'
+                ? (fileInfo.rootName || 'archive') + '.zip'
+                : fileInfo.filename;
+
             let fileHandle, writable;
             try {
                 fileHandle = await window.showSaveFilePicker({
-                    suggestedName: fileInfo.filename
+                    suggestedName: suggestedName
                 });
                 writable = await fileHandle.createWritable();
             } catch (err) {
