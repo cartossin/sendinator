@@ -149,60 +149,74 @@ function createTarStream(files) {
         },
 
         async pull(controller) {
-            // If we've ended, close the stream
-            if (ended) {
-                controller.close();
-                return;
-            }
-
-            // If we need a new file
-            if (!currentFile) {
-                const { value, done } = await fileIterator.next();
-                if (done) {
-                    // End of files - send TAR end marker
-                    controller.enqueue(createTarEnd());
-                    ended = true;
-                    return;
-                }
-                currentFile = value;
-                headerSent = false;
-                currentReader = null;
-            }
-
-            // Send header if not sent yet
-            if (!headerSent) {
-                const size = currentFile.isDirectory ? 0 : currentFile.file.size;
-                const mtime = currentFile.file?.lastModified || Date.now();
-                const header = createTarHeader(currentFile.path, size, currentFile.isDirectory, mtime);
-                controller.enqueue(header);
-                headerSent = true;
-
-                // If directory or empty file, move to next file
-                if (currentFile.isDirectory || size === 0) {
-                    currentFile = null;
+            try {
+                // If we've ended, close the stream
+                if (ended) {
+                    controller.close();
                     return;
                 }
 
-                // Set up file reader
-                currentReader = currentFile.file.stream().getReader();
-                return;
-            }
-
-            // Read and send file data
-            if (currentReader) {
-                const { value, done } = await currentReader.read();
-                if (done) {
-                    // File complete - pad to block boundary
-                    const fileSize = currentFile.file.size;
-                    const remainder = fileSize % TAR_BLOCK_SIZE;
-                    if (remainder > 0) {
-                        controller.enqueue(new Uint8Array(TAR_BLOCK_SIZE - remainder));
+                // If we need a new file
+                if (!currentFile) {
+                    const { value, done } = await fileIterator.next();
+                    if (done) {
+                        // End of files - send TAR end marker
+                        controller.enqueue(createTarEnd());
+                        ended = true;
+                        return;
                     }
-                    currentFile = null;
+                    currentFile = value;
+                    headerSent = false;
                     currentReader = null;
+                }
+
+                // Send header if not sent yet
+                if (!headerSent) {
+                    const size = currentFile.isDirectory ? 0 : currentFile.file.size;
+                    const mtime = currentFile.file?.lastModified || Date.now();
+                    const header = createTarHeader(currentFile.path, size, currentFile.isDirectory, mtime);
+                    controller.enqueue(header);
+                    headerSent = true;
+
+                    // If directory or empty file, move to next file
+                    if (currentFile.isDirectory || size === 0) {
+                        currentFile = null;
+                        return;
+                    }
+
+                    // Set up file reader
+                    try {
+                        currentReader = currentFile.file.stream().getReader();
+                    } catch (streamErr) {
+                        console.error('Failed to create stream for file:', currentFile.path, streamErr);
+                        // Skip this file, enqueue padding for declared size
+                        const paddedSize = Math.ceil(size / TAR_BLOCK_SIZE) * TAR_BLOCK_SIZE;
+                        controller.enqueue(new Uint8Array(paddedSize));
+                        currentFile = null;
+                        return;
+                    }
                     return;
                 }
-                controller.enqueue(value);
+
+                // Read and send file data
+                if (currentReader) {
+                    const { value, done } = await currentReader.read();
+                    if (done) {
+                        // File complete - pad to block boundary
+                        const fileSize = currentFile.file.size;
+                        const remainder = fileSize % TAR_BLOCK_SIZE;
+                        if (remainder > 0) {
+                            controller.enqueue(new Uint8Array(TAR_BLOCK_SIZE - remainder));
+                        }
+                        currentFile = null;
+                        currentReader = null;
+                        return;
+                    }
+                    controller.enqueue(value);
+                }
+            } catch (err) {
+                console.error('TAR stream pull error:', err, 'currentFile:', currentFile?.path);
+                controller.error(err);
             }
         }
     });
