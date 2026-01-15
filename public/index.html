@@ -322,7 +322,7 @@
         <div class="status hashing" id="status">Preparing...</div>
         <div class="chunk-info" id="chunkInfo"></div>
 
-        <button class="new-upload-btn" id="newUploadBtn">Upload another file</button>
+        <button class="new-upload-btn" id="newUploadBtn">Upload Another</button>
     </div>
 
     <a href="/admin" class="admin-link">Admin</a>
@@ -393,7 +393,10 @@
         function showUploadUI() {
             loginContainer.style.display = 'none';
             sessionBar.classList.add('active');
-            dropzone.style.display = 'flex';
+            // Only show dropzone if not currently showing upload results
+            if (!uploadContainer.classList.contains('active')) {
+                dropzone.style.display = 'flex';
+            }
             updateQuotaDisplay();
         }
 
