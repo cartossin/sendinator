@@ -157,7 +157,7 @@
 </head>
 <body>
     <h1>Sendinator</h1>
-    <p class="tagline" id="tagline">Your file is ready</p>
+    <p class="tagline" id="tagline">Your download is ready</p>
 
     <div class="download-card" id="downloadCard">
         <div class="file-info">
@@ -292,7 +292,7 @@
                 if (fileInfo.complete) {
                     uploadProgress.textContent = 'Upload complete';
                     uploadProgress.className = 'upload-progress complete';
-                    tagline.textContent = isArchive ? 'Your folder is ready' : 'Your file is ready';
+                    tagline.textContent = 'Your download is ready';
                     if (refreshInterval) {
                         clearInterval(refreshInterval);
                         refreshInterval = null;
