@@ -4,13 +4,22 @@ Chunked file sharing with progressive downloads.
 
 ## Features
 
-- Chunked uploads (16MB default, configurable) with SHA-256 verification
-- Zero third-party dependencies - pure Node.js
-- Progressive downloads - recipients can start downloading before upload completes
+- Chunked uploads (16MB default) with SHA-256 verification
+- Progressive downloads - start downloading before upload completes
+- Multi-file/folder upload as streaming ZIP archives
 - Resilient to network interruptions (infinite retry with backoff)
 - No file size limits
+- Zero third-party runtime dependencies - pure Node.js
 
 ## Install
+
+### 1. Install required packages
+
+```bash
+apt update && apt install -y git nodejs npm nginx
+```
+
+### 2. Clone and install
 
 ```bash
 git clone https://github.com/cartossin/sendinator.git
@@ -18,15 +27,15 @@ cd sendinator
 npm install
 ```
 
-## Run
+### 3. Set up nginx
+
+nginx serves chunk files directly for better performance.
 
 ```bash
-node server.js
+sudo ./setup-nginx.sh
 ```
 
-Listens on `http://localhost:3000`
-
-## Run with PM2 (recommended for production)
+### 4. Install PM2 and start
 
 ```bash
 npm install -g pm2
@@ -34,6 +43,8 @@ pm2 start server.js --name sendinator
 pm2 save
 pm2 startup
 ```
+
+The server is now running. nginx listens on port 80.
 
 ## Update
 
@@ -44,39 +55,26 @@ npm install
 pm2 restart sendinator
 ```
 
-## nginx Setup (required)
+## Configuration
 
-nginx sits in front of Node.js and serves chunk files directly for low CPU usage.
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `PORT` | 3000 | Node.js server port |
+| `UPLOAD_DIR` | /var/lib/sendinator/uploads | Storage location |
+| `USE_NGINX_ACCEL` | true | Use nginx X-Accel-Redirect |
 
-```bash
-# Install nginx
-apt update && apt install -y nginx
-
-# Run setup script
-sudo ./setup-nginx.sh
-
-# Restart sendinator
-pm2 restart sendinator
-```
-
-nginx now listens on port 80. Point your reverse proxy (NPM, etc.) to this server's port 80.
-
-**To disable nginx mode** (not recommended):
+To change settings:
 ```bash
 USE_NGINX_ACCEL=false pm2 restart sendinator
 ```
 
-## Storage
-
-Uploaded chunks are stored in `/var/lib/sendinator/uploads/` (configurable via `UPLOAD_DIR` env var).
-
 ## Admin Panel
 
-Access at `/admin`. On first launch, you'll be prompted to create a passkey.
+Access at `/admin`. On first launch, create a passkey.
 
 Features:
-- View all uploads with completion status, size, date
-- Search and sort uploads
+- Create upload keys with bandwidth quotas
+- View all uploads with progress/status
 - Delete uploads
 - Copy download links
 
@@ -84,11 +82,5 @@ To reset passkey: delete `/var/lib/sendinator/passkey.json` and restart.
 
 ## TODO
 
-### Download Page Improvements
-- Clearer visibility of upload completion status on download page (done vs still uploading)
 - Stale upload warning (no new chunks received in X time)
-
-### Upload Speed: Pipeline Architecture
-- Separate workers for receiving, hashing, writing
-- Decouple network I/O from CPU (hashing) from disk I/O
-- Could improve upload throughput significantly
+- Upload pipeline optimization (separate workers for receive/hash/write)
