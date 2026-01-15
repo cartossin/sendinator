@@ -513,7 +513,7 @@ const server = http.createServer(async (req, res) => {
                 return sendJson(res, 400, { error: 'Invalid chunk index' });
             }
 
-            // For archives, allow chunks beyond initial estimate (TAR size is approximate)
+            // For archives, allow chunks beyond initial estimate (ZIP size is approximate)
             // Dynamically expand arrays if needed
             if (chunkIndex >= fileInfo.totalChunks) {
                 if (fileInfo.type === 'archive') {
@@ -618,7 +618,7 @@ const server = http.createServer(async (req, res) => {
                     // If actualChunks > oldTotal, array was already expanded during upload
 
                     // ALWAYS calculate actual size from chunks on disk
-                    // (TAR size estimation is approximate, byte count may differ even if chunk count matches)
+                    // (ZIP size estimation is approximate, byte count may differ even if chunk count matches)
                     const fileDir = path.join(UPLOAD_DIR, id);
                     let actualSize = 0;
                     let allChunksFound = true;
