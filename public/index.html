@@ -326,7 +326,7 @@
     </div>
 
     <a href="/admin" class="admin-link">Admin</a>
-    <div class="version">v3.4.0</div>
+    <div class="version">v3.5.0</div>
 
     <script src="zip.js"></script>
     <script>
@@ -453,6 +453,17 @@
         function showLoginError(msg) {
             loginError.textContent = msg;
             loginError.style.display = 'block';
+        }
+
+        // Auto-login from URL hash (e.g., /#abc123)
+        if (window.location.hash) {
+            const hashKey = window.location.hash.slice(1);
+            if (hashKey) {
+                keyInput.value = hashKey;
+                // Clear hash from URL without triggering navigation
+                history.replaceState(null, '', window.location.pathname);
+                handleLogin();
+            }
         }
 
         // Logout handler

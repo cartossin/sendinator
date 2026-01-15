@@ -104,6 +104,8 @@ To reset passkey: delete `/var/lib/sendinator/passkey.json` and restart.
 - Resume broken uploads
 - Stale upload warning (no new chunks received in X time)
 - Upload pipeline optimization (separate workers for receive/hash/write)
+- Admin panel: upload timestamps, sortable columns, search/filter
+- Brave browser: blocked by design (File System Access API disabled for privacy)
 
 ## License
 
