@@ -917,8 +917,13 @@
                 console.log('TAR iterator complete:', count, 'items');
             }
 
-            // Create TAR stream
-            const tarStream = window.TarStream.createTarStream(itemIterator());
+            // Create TAR stream with file progress callback
+            let filesProcessed = 0;
+            const totalItems = items.length;
+            const tarStream = window.TarStream.createTarStream(itemIterator(), (path, size, isDir, index) => {
+                filesProcessed = index + 1;
+                chunkInfo.textContent = `Packing ${filesProcessed.toLocaleString()} / ${totalItems.toLocaleString()} files`;
+            });
             const reader = tarStream.getReader();
             console.log('TAR stream reader created');
 

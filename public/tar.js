@@ -135,8 +135,11 @@ function createTarEnd() {
 }
 
 // Create an async generator that yields TAR data chunks
-async function* createTarGenerator(files) {
+// onFile callback: (path, size, isDirectory, fileIndex) => void
+async function* createTarGenerator(files, onFile) {
+    let fileIndex = 0;
     for await (const item of files) {
+        if (onFile) onFile(item.path, item.file?.size || 0, item.isDirectory, fileIndex++);
         console.log('TAR processing:', item.path, item.isDirectory ? '(dir)' : item.file?.size + ' bytes');
 
         const size = item.isDirectory ? 0 : item.file.size;
@@ -177,8 +180,8 @@ async function* createTarGenerator(files) {
 }
 
 // Wrapper to create ReadableStream from generator (for compatibility)
-function createTarStream(files) {
-    const generator = createTarGenerator(files);
+function createTarStream(files, onFile) {
+    const generator = createTarGenerator(files, onFile);
 
     return new ReadableStream({
         async pull(controller) {
