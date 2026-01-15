@@ -43,6 +43,38 @@ npm install
 pm2 restart sendinator
 ```
 
+## HTTPS Setup (required)
+
+Sendinator requires HTTPS for the File System Access API used by managed downloads.
+
+**Architecture:** Node.js (port 3000) → nginx (port 80) → reverse proxy (HTTPS)
+
+### Option 1: Nginx Proxy Manager (recommended)
+
+If you run [Nginx Proxy Manager](https://nginxproxymanager.com/) on your network:
+
+1. Add a new proxy host pointing to this server's port 80
+2. Enable SSL with Let's Encrypt
+3. Enable WebSockets support
+
+### Option 2: Direct SSL on nginx
+
+Edit `/etc/nginx/sites-available/sendinator` and add SSL configuration:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name your-domain.com;
+
+    ssl_certificate /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/privkey.pem;
+
+    # ... rest of existing config ...
+}
+```
+
+Use [certbot](https://certbot.eff.org/) for free Let's Encrypt certificates.
+
 ## Configuration
 
 | Environment Variable | Default | Description |
