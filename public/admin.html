@@ -283,6 +283,11 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            color: #667eea;
+            text-decoration: none;
+        }
+        .upload-filename:hover {
+            text-decoration: underline;
         }
         .upload-size { color: #888; font-size: 0.9em; min-width: 80px; }
         .upload-progress { min-width: 100px; }
@@ -712,7 +717,7 @@
                                 const isComplete = u.totalChunks > 0 && u.chunksReceived === u.totalChunks;
                                 return `
                                     <div class="upload-row">
-                                        <div class="upload-filename" title="${escapeHtml(u.filename)}">${escapeHtml(u.filename)}</div>
+                                        <a class="upload-filename" href="/download/${u.id}" title="${escapeHtml(u.filename)}">${escapeHtml(u.filename)}</a>
                                         <div class="upload-size">${formatBytes(u.size)}</div>
                                         <div class="upload-progress">
                                             <div class="progress-bar">
@@ -836,7 +841,7 @@
                             const isComplete = u.totalChunks > 0 && u.chunksReceived === u.totalChunks;
                             return `
                                 <div class="upload-row">
-                                    <div class="upload-filename" title="${escapeHtml(u.filename)}">${escapeHtml(u.filename)}</div>
+                                    <a class="upload-filename" href="/download/${u.id}" title="${escapeHtml(u.filename)}">${escapeHtml(u.filename)}</a>
                                     <div class="upload-size">${formatBytes(u.size)}</div>
                                     <div class="upload-progress">
                                         <div class="progress-bar">
