@@ -132,13 +132,31 @@ function loadFilesFromDisk() {
                 const fileDir = path.join(UPLOAD_DIR, id);
                 const chunkFiles = fs.readdirSync(fileDir).filter(f => f.startsWith('chunk_'));
                 const actualChunks = new Set();
+                let actualSize = 0;
                 for (const f of chunkFiles) {
                     const idx = parseInt(f.replace('chunk_', ''), 10);
-                    if (!isNaN(idx)) actualChunks.add(idx);
+                    if (!isNaN(idx)) {
+                        actualChunks.add(idx);
+                        // Calculate actual size from disk
+                        try {
+                            const stat = fs.statSync(path.join(fileDir, f));
+                            actualSize += stat.size;
+                        } catch (e) { /* ignore */ }
+                    }
                 }
 
                 // Use actual chunks found on disk
                 meta.chunksReceived = actualChunks;
+
+                // Fix size for archives if it differs from actual
+                if (actualChunks.size === meta.totalChunks && actualSize > 0 && actualSize !== meta.size) {
+                    console.log(`Fixing ${id} size: ${formatBytes(meta.size)} -> ${formatBytes(actualSize)}`);
+                    meta.size = actualSize;
+                    // Save corrected metadata
+                    const toSave = { ...meta, chunksReceived: Array.from(meta.chunksReceived) };
+                    fs.writeFileSync(metaPath, JSON.stringify(toSave));
+                }
+
                 files.set(id, meta);
 
                 const status = actualChunks.size === meta.totalChunks ? 'complete' : `${actualChunks.size}/${meta.totalChunks}`;
@@ -588,7 +606,7 @@ const server = http.createServer(async (req, res) => {
                 const body = await readJsonBody(req);
                 const { actualChunks } = body;
 
-                if (actualChunks && actualChunks !== fileInfo.totalChunks) {
+                if (actualChunks) {
                     // Update total chunks to actual count
                     const oldTotal = fileInfo.totalChunks;
                     fileInfo.totalChunks = actualChunks;
@@ -599,9 +617,11 @@ const server = http.createServer(async (req, res) => {
                     }
                     // If actualChunks > oldTotal, array was already expanded during upload
 
-                    // Calculate actual size from chunks on disk
+                    // ALWAYS calculate actual size from chunks on disk
+                    // (TAR size estimation is approximate, byte count may differ even if chunk count matches)
                     const fileDir = path.join(UPLOAD_DIR, id);
                     let actualSize = 0;
+                    let allChunksFound = true;
                     for (let i = 0; i < actualChunks; i++) {
                         const chunkPath = path.join(fileDir, `chunk_${i}`);
                         try {
@@ -609,14 +629,17 @@ const server = http.createServer(async (req, res) => {
                             actualSize += stat.size;
                         } catch (e) {
                             // Chunk missing - leave size as estimated
+                            allChunksFound = false;
                             actualSize = fileInfo.size;
                             break;
                         }
                     }
+
+                    const oldSize = fileInfo.size;
                     fileInfo.size = actualSize;
 
                     saveMetadata(id, fileInfo);
-                    console.log(`Finalized ${id}: ${oldTotal} -> ${actualChunks} chunks, size: ${formatBytes(actualSize)}`);
+                    console.log(`Finalized ${id}: ${oldTotal} -> ${actualChunks} chunks, size: ${formatBytes(oldSize)} -> ${formatBytes(actualSize)}${allChunksFound ? '' : ' (estimated)'}`);
                 }
 
                 return sendJson(res, 200, { success: true });

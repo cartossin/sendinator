@@ -153,9 +153,6 @@
         .home-link:hover { text-decoration: underline; }
         .version { position: fixed; bottom: 10px; right: 10px; color: #444; font-size: 0.75em; }
         .archive-info { color: #667eea; font-size: 0.85em; margin-top: 4px; }
-        .extract-note { font-size: 0.8em; color: #888; margin-top: 8px; text-align: center; }
-        .tar-modal p { color: #ccc; line-height: 1.6; margin: 0 0 15px 0; }
-        .tar-modal p:last-of-type { margin-bottom: 0; }
     </style>
 </head>
 <body>
@@ -174,7 +171,6 @@
         </div>
 
         <button class="download-btn" id="downloadBtn" disabled>Loading...</button>
-        <div class="extract-note" id="extractNote" style="display: none;">Note: Chrome may complain about "system folders". To fix, create a new empty folder and extract to that.</div>
 
         <div class="progress-container" id="progressContainer">
             <div class="progress-bar">
@@ -228,35 +224,22 @@
         </div>
     </div>
 
-    <div class="modal-overlay" id="tarModalOverlay" onclick="closeTarModal()">
-        <div class="modal tar-modal" onclick="event.stopPropagation()">
-            <h3>About .tar Archives</h3>
-            <p>This download contains multiple files packaged into a single .tar archive.</p>
-            <p>On <strong>Chrome or Edge</strong>, click "Extract to Folder" to extract files directly to your computer.</p>
-            <p>On <strong>other browsers</strong>, download the .tar file and extract it using your system's archive tool (7-Zip, WinRAR, The Unarchiver, or built-in tools on Mac/Linux).</p>
-            <button class="modal-close" onclick="closeTarModal()">Got it</button>
-        </div>
-    </div>
-
     <div class="download-card not-found" id="notFound" style="display: none;">
         <h2>File Not Found</h2>
         <p>This file may have expired or been deleted.</p>
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
-    <div class="version">v3.3.0</div>
+    <div class="version">v3.4.0</div>
 
-    <script src="/tar.js"></script>
     <script>
         // Pipeline configuration
         const PARALLEL_DOWNLOADS = 6;
         const PARALLEL_HASHES = 3;
-        // Buffer sizes calculated dynamically from server config
 
         const fileId = window.location.pathname.split('/').pop();
         let fileInfo = null;
         const supportsProgressiveDownload = !!window.showSaveFilePicker;
-        const supportsDirectoryPicker = !!window.showDirectoryPicker;
 
         const downloadCard = document.getElementById('downloadCard');
         const notFound = document.getElementById('notFound');
@@ -276,7 +259,6 @@
         const chunkInfo = document.getElementById('chunkInfo');
         const directLinkContainer = document.getElementById('directLinkContainer');
         const directLink = document.getElementById('directLink');
-        const extractNote = document.getElementById('extractNote');
         let refreshInterval = null;
 
         async function loadFileInfo() {
@@ -295,7 +277,7 @@
                     fileIcon.textContent = '📁';
                     fileName.textContent = fileInfo.rootName || 'Archive';
                     fileSize.textContent = formatBytes(fileInfo.size);
-                    archiveInfo.textContent = `${fileInfo.fileCount} files`;
+                    archiveInfo.textContent = `${fileInfo.fileCount} files (.zip)`;
                     archiveInfo.style.display = 'block';
                 } else {
                     fileName.textContent = fileInfo.filename;
@@ -332,33 +314,19 @@
                     return;
                 }
 
-                // Handle based on browser support, file type, and completeness
+                // Handle based on browser support and file type
                 if (isArchive) {
-                    // Archive handling
-                    if (supportsDirectoryPicker) {
-                        // Chrome/Edge - can extract to folder
+                    // Archives: direct download as .zip (all browsers)
+                    if (fileInfo.complete) {
                         downloadBtn.disabled = false;
-                        extractNote.style.display = 'block';
-                        if (fileInfo.complete) {
-                            downloadBtn.textContent = 'Extract to Folder';
-                            status.className = 'status complete';
-                            status.textContent = 'Ready to extract';
-                        } else {
-                            downloadBtn.textContent = 'Start Extraction';
-                            status.className = 'status waiting';
-                            status.textContent = 'You can start extracting now while upload continues';
-                        }
+                        downloadBtn.textContent = 'Download .zip';
+                        status.className = 'status complete';
+                        status.textContent = 'Ready to download - extract with your system\'s zip tool';
                     } else {
-                        // Safari/Firefox - point to direct TAR download
                         downloadBtn.disabled = true;
-                        downloadBtn.textContent = 'Extract to Folder';
-                        extractNote.style.display = 'none';
-                        status.className = 'status warning';
-                        if (fileInfo.complete) {
-                            status.innerHTML = 'Folder extraction requires Chrome/Edge. Download the .tar file below and extract locally.';
-                        } else {
-                            status.innerHTML = 'Upload in progress. Once complete, download the .tar file to extract locally.';
-                        }
+                        downloadBtn.textContent = 'Download .zip';
+                        status.className = 'status waiting';
+                        status.textContent = 'Waiting for upload to complete...';
                     }
                 } else if (supportsProgressiveDownload) {
                     // Chrome/Edge - can start downloading immediately even if incomplete
@@ -387,24 +355,12 @@
                 // Show direct link section
                 if (fileInfo.complete) {
                     directLink.href = `/api/download/${fileId}`;
-                    if (isArchive) {
-                        directLinkContainer.innerHTML = `<a href="/api/download/${fileId}" target="_blank">Direct link</a> (.tar archive) - <span class="learn-more" onclick="showTarModal()">Learn more</span>`;
-                    } else {
-                        directLinkContainer.innerHTML = `<a href="/api/download/${fileId}" target="_blank">Direct link</a>`;
-                    }
+                    directLinkContainer.innerHTML = `<a href="/api/download/${fileId}" target="_blank">Direct link</a>`;
                     directLinkContainer.style.display = 'block';
                 } else if (!supportsProgressiveDownload && !isArchive) {
                     // Unsupported browser + still uploading: show placeholder with progress
                     const pct = (fileInfo.chunksReceived / fileInfo.totalChunks * 100).toFixed(0);
                     directLinkContainer.innerHTML = `Direct link will appear here. File is still uploading (${pct}%)`;
-                    directLinkContainer.style.display = 'block';
-                } else if (isArchive && !supportsDirectoryPicker) {
-                    if (fileInfo.complete) {
-                        directLinkContainer.innerHTML = `<a href="/api/download/${fileId}" target="_blank">Direct link</a> (.tar archive) - <span class="learn-more" onclick="showTarModal()">Learn more</span>`;
-                    } else {
-                        const pct = (fileInfo.chunksReceived / fileInfo.totalChunks * 100).toFixed(0);
-                        directLinkContainer.innerHTML = `.tar download will appear here. File is still uploading (${pct}%)`;
-                    }
                     directLinkContainer.style.display = 'block';
                 }
             } catch (err) {
@@ -426,25 +382,19 @@
             document.getElementById('modalOverlay').classList.remove('active');
         }
 
-        function showTarModal() {
-            document.getElementById('tarModalOverlay').classList.add('active');
-        }
-
-        function closeTarModal() {
-            document.getElementById('tarModalOverlay').classList.remove('active');
-        }
-
         downloadBtn.addEventListener('click', startDownload);
 
         async function startDownload() {
-            // Check if this is an archive that needs extraction
+            // Archives: direct download
             if (fileInfo.type === 'archive') {
-                return startArchiveExtraction();
+                window.location.href = `/api/download/${fileId}`;
+                return;
             }
 
             // Use fallback for unsupported browsers
             if (!supportsProgressiveDownload) {
-                return startFallbackDownload();
+                window.location.href = `/api/download/${fileId}`;
+                return;
             }
 
             let fileHandle, writable;
@@ -483,8 +433,7 @@
             } catch (e) { /* use cached */ }
 
             // Calculate buffer sizes from server config
-            // Split target memory between download buffer and verified buffer
-            const targetMemory = fileInfo.targetBufferMemory || (100 * 1024 * 1024);  // Default 100MB
+            const targetMemory = fileInfo.targetBufferMemory || (100 * 1024 * 1024);
             const chunkSize = fileInfo.chunkSize;
             const halfMemory = Math.floor(targetMemory / 2);
             const MAX_DOWNLOAD_BUFFER = Math.max(2, Math.floor(halfMemory / chunkSize));
@@ -492,15 +441,14 @@
             console.log(`Buffer config: ${formatBytes(chunkSize)} chunks, ${MAX_DOWNLOAD_BUFFER} download + ${MAX_VERIFIED_BUFFER} verified = ~${formatBytes(targetMemory)} target`);
 
             // Pipeline state
-            const downloadBuffer = new Map();  // chunkIndex -> ArrayBuffer (raw)
-            const verifiedBuffer = new Map();  // chunkIndex -> Uint8Array (hashed & verified)
-            // States: pending, downloading, downloaded, hashing, verified, done
+            const downloadBuffer = new Map();
+            const verifiedBuffer = new Map();
             const chunkState = new Array(fileInfo.totalChunks).fill('pending');
             let nextChunkToWrite = 0;
             let writtenBytes = 0;
             let pipelineError = null;
-            let lastProgressTime = Date.now();  // For watchdog
-            let quotaExhausted = false;  // Track quota state for status display
+            let lastProgressTime = Date.now();
+            let quotaExhausted = false;
 
             // Speed tracking
             const chunkCompletions = [];
@@ -511,7 +459,6 @@
                     const windowSeconds = Math.min(30, (now - chunkCompletions[0]) / 1000);
                     const speed = recent.length * fileInfo.chunkSize / windowSeconds;
                     progressSpeed.textContent = formatBytes(speed) + '/s';
-                    // Calculate ETA
                     const remainingBytes = fileInfo.size - writtenBytes;
                     const etaSeconds = remainingBytes / speed;
                     progressEta.textContent = formatTime(etaSeconds);
@@ -526,30 +473,25 @@
                 chunkInfo.textContent = `${formatBytes(writtenBytes)} / ${formatBytes(fileInfo.size)} | Buffered: ${downloadBuffer.size + verifiedBuffer.size} chunks`;
             }
 
-            // === FILE INFO REFRESHER (for progressive downloads only) ===
+            // File info refresher for progressive downloads
             async function fileInfoRefresher() {
-                // Only refresh if file upload is still in progress
                 while (!pipelineError && !fileInfo.complete) {
-                    await new Promise(r => setTimeout(r, 2000));  // Check every 2 seconds
+                    await new Promise(r => setTimeout(r, 2000));
                     if (pipelineError || chunkState.every(s => s === 'done')) break;
                     try {
                         const res = await fetch(`/api/info/${fileId}`);
                         if (res.ok) fileInfo = await res.json();
-                    } catch (e) { /* ignore, use cached */ }
+                    } catch (e) { /* ignore */ }
                 }
             }
 
-            // === DOWNLOAD WORKER ===
+            // Download worker
             async function downloadWorker(workerId) {
                 while (!pipelineError) {
-                    // Check if all done
                     if (chunkState.every(s => s === 'done')) break;
 
-                    // Find next pending chunk - prioritize chunks near nextChunkToWrite
-                    // This prevents deadlock where buffers fill with later chunks
                     let chunkIndex = -1;
 
-                    // First: look for pending chunks from nextChunkToWrite onwards (priority)
                     for (let i = nextChunkToWrite; i < fileInfo.totalChunks; i++) {
                         if (chunkState[i] === 'pending' && fileInfo.chunkHashes[i]) {
                             chunkIndex = i;
@@ -558,7 +500,6 @@
                         }
                     }
 
-                    // Fallback: check earlier chunks (shouldn't normally happen)
                     if (chunkIndex === -1) {
                         for (let i = 0; i < nextChunkToWrite; i++) {
                             if (chunkState[i] === 'pending' && fileInfo.chunkHashes[i]) {
@@ -570,8 +511,6 @@
                     }
 
                     if (chunkIndex === -1) {
-                        // No chunks available - either all in progress or waiting for upload
-                        // Use shorter wait near end of download
                         const remaining = fileInfo.totalChunks - nextChunkToWrite;
                         await new Promise(r => setTimeout(r, remaining < 20 ? 10 : 100));
                         continue;
@@ -580,20 +519,16 @@
                     try {
                         const data = await downloadChunk(chunkIndex);
 
-                        // Clear error status on successful download
                         quotaExhausted = false;
                         if (status.className.includes('error')) {
                             status.className = 'status downloading';
                         }
 
-                        // Wait for buffer space AFTER download (prevents overflow)
                         while (downloadBuffer.size >= MAX_DOWNLOAD_BUFFER && !pipelineError) {
-                            // Check if watchdog reset this chunk - discard if so
                             if (chunkState[chunkIndex] === 'pending') {
                                 console.log(`[WORKER] Discarding chunk ${chunkIndex} - watchdog reset it`);
                                 break;
                             }
-                            // Critical chunk (nextChunkToWrite) gets priority - evict later chunks
                             if (chunkIndex === nextChunkToWrite) {
                                 let maxIdx = -1;
                                 for (const idx of downloadBuffer.keys()) {
@@ -611,7 +546,6 @@
                         }
                         if (pipelineError) break;
 
-                        // Only add to buffer if still in downloading state
                         if (chunkState[chunkIndex] === 'downloading') {
                             downloadBuffer.set(chunkIndex, data);
                             chunkState[chunkIndex] = 'downloaded';
@@ -619,42 +553,33 @@
                     } catch (err) {
                         chunkState[chunkIndex] = 'pending';
                         if (err.is404) {
-                            // Chunk not uploaded yet - wait for upload to catch up
                             await new Promise(r => setTimeout(r, 500));
                         } else if (err.isQuotaError) {
-                            // Quota exhausted - show clear message and wait for admin to increase
                             quotaExhausted = true;
                             status.className = 'status error';
                             status.textContent = 'Quota exhausted - waiting for more quota...';
-                            // Retry less frequently to not spam server
                             await new Promise(r => setTimeout(r, 5000));
                         } else if (err.isRetryable || err.message?.includes('fetch')) {
-                            // Server error or network error - show status and retry
                             status.className = 'status error';
                             status.textContent = `Connection lost - retrying...`;
                             await new Promise(r => setTimeout(r, 1000));
                         } else {
-                            // Unknown error - brief pause and retry
                             await new Promise(r => setTimeout(r, 500));
                         }
                     }
                 }
             }
 
-            // === HASH WORKER ===
+            // Hash worker
             async function hashWorker(workerId) {
                 while (!pipelineError) {
-                    // Check if all done
                     if (chunkState.every(s => s === 'done')) break;
 
-                    // Find a downloaded chunk to hash - prioritize critical chunk (nextChunkToWrite)
                     let chunkIndex = -1;
 
-                    // First: check if the critical chunk needs hashing
                     if (chunkState[nextChunkToWrite] === 'downloaded') {
                         chunkIndex = nextChunkToWrite;
                         chunkState[chunkIndex] = 'hashing';
-                        // Make room if needed - evict furthest chunk
                         if (verifiedBuffer.size >= MAX_VERIFIED_BUFFER) {
                             let maxIdx = -1;
                             for (const idx of verifiedBuffer.keys()) {
@@ -666,14 +591,12 @@
                             }
                         }
                     } else {
-                        // Wait if verified buffer is full (non-critical chunks can wait)
                         if (verifiedBuffer.size >= MAX_VERIFIED_BUFFER) {
                             const remaining = fileInfo.totalChunks - nextChunkToWrite;
                             await new Promise(r => setTimeout(r, remaining < 20 ? 5 : 50));
                             continue;
                         }
 
-                        // Find any downloaded chunk, prioritizing lower indices
                         for (let i = nextChunkToWrite; i < fileInfo.totalChunks; i++) {
                             if (chunkState[i] === 'downloaded') {
                                 chunkIndex = i;
@@ -684,7 +607,6 @@
                     }
 
                     if (chunkIndex === -1) {
-                        // Shorter wait near end of download
                         const remaining = fileInfo.totalChunks - nextChunkToWrite;
                         await new Promise(r => setTimeout(r, remaining < 20 ? 5 : 50));
                         continue;
@@ -697,11 +619,10 @@
                         const hash = await hashData(data);
 
                         if (hash !== fileInfo.chunkHashes[chunkIndex]) {
-                            chunkState[chunkIndex] = 'pending'; // re-download
+                            chunkState[chunkIndex] = 'pending';
                             continue;
                         }
 
-                        // Copy data so original ArrayBuffer can be GC'd
                         const chunk = new Uint8Array(data.byteLength);
                         chunk.set(new Uint8Array(data));
 
@@ -713,7 +634,7 @@
                 }
             }
 
-            // === DISK WRITER ===
+            // Disk writer
             async function diskWriter() {
                 while (!pipelineError && nextChunkToWrite < fileInfo.totalChunks) {
                     if (verifiedBuffer.has(nextChunkToWrite)) {
@@ -724,7 +645,7 @@
                             writtenBytes += data.byteLength;
                             chunkState[nextChunkToWrite] = 'done';
                             chunkCompletions.push(Date.now());
-                            lastProgressTime = Date.now();  // Update watchdog
+                            lastProgressTime = Date.now();
                             nextChunkToWrite++;
                             updateProgress();
                         } catch (err) {
@@ -732,19 +653,18 @@
                             throw err;
                         }
                     } else {
-                        // Faster polling near end of download
                         const remaining = fileInfo.totalChunks - nextChunkToWrite;
                         await new Promise(r => setTimeout(r, remaining < 20 ? 5 : 20));
                     }
                 }
             }
 
-            // === WATCHDOG - detects stalls and forces recovery ===
+            // Watchdog
             async function watchdog() {
-                const STALL_TIMEOUT = 15000;  // 15 seconds without progress = stalled
+                const STALL_TIMEOUT = 15000;
 
                 while (!pipelineError && nextChunkToWrite < fileInfo.totalChunks) {
-                    await new Promise(r => setTimeout(r, 5000));  // Check every 5s
+                    await new Promise(r => setTimeout(r, 5000));
 
                     if (pipelineError || chunkState.every(s => s === 'done')) break;
 
@@ -755,60 +675,42 @@
                         status.className = 'status error';
                         status.textContent = 'Stall detected - recovering...';
 
-                        // Log current state
-                        console.log(`[WATCHDOG] nextChunkToWrite=${nextChunkToWrite}, downloadBuffer=${downloadBuffer.size}, verifiedBuffer=${verifiedBuffer.size}`);
-                        console.log(`[WATCHDOG] Chunk ${nextChunkToWrite} state: ${chunkState[nextChunkToWrite]}`);
-
-                        // Clear ALL buffered chunks except nextChunkToWrite - make room for critical chunk
                         for (const idx of downloadBuffer.keys()) {
                             if (idx !== nextChunkToWrite) {
-                                console.log(`[WATCHDOG] Evicting download buffer chunk ${idx}`);
                                 downloadBuffer.delete(idx);
                                 chunkState[idx] = 'pending';
                             }
                         }
                         for (const idx of verifiedBuffer.keys()) {
                             if (idx !== nextChunkToWrite) {
-                                console.log(`[WATCHDOG] Evicting verified buffer chunk ${idx}`);
                                 verifiedBuffer.delete(idx);
                                 chunkState[idx] = 'pending';
                             }
                         }
 
-                        // Reset any stuck downloading/hashing chunks to pending
                         for (let i = 0; i < fileInfo.totalChunks; i++) {
                             if (chunkState[i] === 'downloading' || chunkState[i] === 'hashing') {
-                                console.log(`[WATCHDOG] Resetting stuck chunk ${i} from ${chunkState[i]} to pending`);
                                 chunkState[i] = 'pending';
                             }
                         }
 
-                        // Make sure the critical chunk (nextChunkToWrite) is pending
                         if (chunkState[nextChunkToWrite] !== 'done' && chunkState[nextChunkToWrite] !== 'verified') {
-                            console.log(`[WATCHDOG] Forcing chunk ${nextChunkToWrite} to pending for re-download`);
                             downloadBuffer.delete(nextChunkToWrite);
                             verifiedBuffer.delete(nextChunkToWrite);
                             chunkState[nextChunkToWrite] = 'pending';
                         }
 
-                        // Reset progress timer to give recovery time
                         lastProgressTime = Date.now();
                     }
                 }
             }
 
-            // === STATUS UPDATER ===
+            // Status updater
             async function statusUpdater() {
-                let lastBottleneckLog = 0;
                 while (!pipelineError && nextChunkToWrite < fileInfo.totalChunks) {
                     const downloading = chunkState.filter(s => s === 'downloading').length;
-                    const downloaded = chunkState.filter(s => s === 'downloaded').length;
-                    const hashing = chunkState.filter(s => s === 'hashing').length;
-                    const verified = chunkState.filter(s => s === 'verified').length;
-                    const done = chunkState.filter(s => s === 'done').length;
                     const pending = chunkState.filter(s => s === 'pending').length;
 
-                    // Don't overwrite quota error message
                     if (quotaExhausted) {
                         await new Promise(r => setTimeout(r, 500));
                         continue;
@@ -824,42 +726,17 @@
                         status.textContent = `${downloading} downloading | ${nextChunkToWrite}/${fileInfo.totalChunks} written`;
                     }
 
-                    // Log bottleneck analysis every 5 seconds
-                    const now = Date.now();
-                    if (now - lastBottleneckLog >= 5000) {
-                        lastBottleneckLog = now;
-                        const dlFull = downloadBuffer.size >= MAX_DOWNLOAD_BUFFER;
-                        const vfFull = verifiedBuffer.size >= MAX_VERIFIED_BUFFER;
-
-                        if (dlFull && vfFull) {
-                            console.log(`[BOTTLENECK] Both buffers full (DL:${downloadBuffer.size}/${MAX_DOWNLOAD_BUFFER}, VF:${verifiedBuffer.size}/${MAX_VERIFIED_BUFFER}) - DISK is the bottleneck`);
-                        } else if (dlFull) {
-                            console.log(`[BOTTLENECK] Download buffer full (DL:${downloadBuffer.size}/${MAX_DOWNLOAD_BUFFER}, VF:${verifiedBuffer.size}/${MAX_VERIFIED_BUFFER}) - HASH is the bottleneck`);
-                        } else if (vfFull) {
-                            console.log(`[BOTTLENECK] Verified buffer full (DL:${downloadBuffer.size}/${MAX_DOWNLOAD_BUFFER}, VF:${verifiedBuffer.size}/${MAX_VERIFIED_BUFFER}) - DISK is the bottleneck`);
-                        } else {
-                            console.log(`[BOTTLENECK] Buffers OK (DL:${downloadBuffer.size}/${MAX_DOWNLOAD_BUFFER}, VF:${verifiedBuffer.size}/${MAX_VERIFIED_BUFFER}) - NETWORK limited (good!)`);
-                        }
-                    }
-
                     await new Promise(r => setTimeout(r, 500));
                 }
             }
 
             try {
-                // Start all pipeline workers
                 await Promise.all([
-                    // File info refresher (only active for progressive downloads)
                     fileInfoRefresher(),
-                    // Download workers
                     ...Array(PARALLEL_DOWNLOADS).fill().map((_, i) => downloadWorker(i)),
-                    // Hash workers
                     ...Array(PARALLEL_HASHES).fill().map((_, i) => hashWorker(i)),
-                    // Single disk writer (sequential writes are fastest)
                     diskWriter(),
-                    // Status updater
                     statusUpdater(),
-                    // Watchdog - detects and recovers from stalls
                     watchdog()
                 ]);
 
@@ -890,7 +767,6 @@
             }
             };
 
-            // Execute with Web Lock if available
             try {
                 if (navigator.locks) {
                     await navigator.locks.request('sendinator-download', doDownload);
@@ -903,9 +779,8 @@
         }
 
         async function downloadChunk(index) {
-            // Try once with timeout - let worker handle retry logic to avoid blocking
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+            const timeout = setTimeout(() => controller.abort(), 30000);
 
             try {
                 const res = await fetch(`/api/chunk/${fileId}/${index}`, {
@@ -917,7 +792,6 @@
                     throw { is404: true, message: `Chunk ${index} not yet uploaded` };
                 }
                 if (res.status === 403) {
-                    // Parse error to check if it's quota exhaustion
                     const err = await res.json().catch(() => ({}));
                     if (err.error?.includes('quota')) {
                         throw { isQuotaError: true, message: err.error };
@@ -930,9 +804,7 @@
                 return await res.arrayBuffer();
             } catch (err) {
                 clearTimeout(timeout);
-                // Re-throw our custom error objects as-is
                 if (err.is404 || err.isRetryable || err.isQuotaError) throw err;
-                // Wrap other errors (network failures, timeouts)
                 if (err.name === 'AbortError') {
                     throw { isRetryable: true, message: 'Request timeout' };
                 }
@@ -965,178 +837,6 @@
             const h = Math.floor(seconds / 3600);
             const m = Math.ceil((seconds % 3600) / 60);
             return h + 'h ' + m + 'm';
-        }
-
-        // Fallback download for browsers without File System Access API
-        // Just navigate to the direct download URL - browser handles it natively
-        function startFallbackDownload() {
-            window.location.href = `/api/download/${fileId}`;
-        }
-
-        // Archive extraction for multi-file downloads
-        async function startArchiveExtraction() {
-            if (!supportsDirectoryPicker) {
-                return startFallbackDownload();
-            }
-
-            let destDir;
-            try {
-                destDir = await window.showDirectoryPicker({
-                    mode: 'readwrite'
-                });
-            } catch (err) {
-                if (err.name === 'AbortError') return; // User cancelled
-                status.className = 'status error';
-                // Chrome blocks certain "sensitive" folders like Downloads root
-                if (err.message.includes('system files') || err.message.includes('sensitive')) {
-                    status.textContent = 'Chrome blocked this folder. Create a new subfolder and select that instead.';
-                } else {
-                    status.textContent = 'Failed to select folder: ' + err.message;
-                }
-                return;
-            }
-
-            downloadBtn.disabled = true;
-            downloadBtn.textContent = 'Extracting...';
-            progressContainer.classList.add('active');
-            status.className = 'status downloading';
-            status.textContent = 'Starting extraction...';
-
-            // Prevent accidental tab close
-            const preventClose = (e) => {
-                e.preventDefault();
-                e.returnValue = '';
-            };
-            window.addEventListener('beforeunload', preventClose);
-
-            const doExtraction = async () => {
-                // Fetch fresh file info
-                try {
-                    const res = await fetch(`/api/info/${fileId}`);
-                    if (res.ok) fileInfo = await res.json();
-                } catch (e) { /* use cached */ }
-
-                const startTime = Date.now();
-                let bytesDownloaded = 0;
-                let filesExtracted = 0;
-
-                // Create a ReadableStream that downloads chunks sequentially
-                const tarStream = new ReadableStream({
-                    async start() {
-                        this.currentChunk = 0;
-                    },
-
-                    async pull(controller) {
-                        // Re-check totalChunks in case it was updated by finalization
-                        if (this.currentChunk >= fileInfo.totalChunks) {
-                            controller.close();
-                            return;
-                        }
-
-                        // Wait for chunk to be available
-                        while (!fileInfo.chunkHashes[this.currentChunk]) {
-                            // Refresh file info to get new hashes
-                            try {
-                                const res = await fetch(`/api/info/${fileId}`);
-                                if (res.ok) fileInfo = await res.json();
-                            } catch (e) { /* retry */ }
-
-                            // Check if totalChunks changed (finalization may have reduced it)
-                            if (this.currentChunk >= fileInfo.totalChunks) {
-                                controller.close();
-                                return;
-                            }
-
-                            await new Promise(r => setTimeout(r, 1000));
-                        }
-
-                        // Download chunk with retries
-                        let data = null;
-                        let attempt = 0;
-                        while (!data) {
-                            try {
-                                const res = await fetch(`/api/chunk/${fileId}/${this.currentChunk}`);
-                                if (res.status === 403) {
-                                    const err = await res.json().catch(() => ({}));
-                                    if (err.error?.includes('quota')) {
-                                        status.className = 'status error';
-                                        status.textContent = 'Quota exhausted - waiting for more quota...';
-                                        await new Promise(r => setTimeout(r, 5000));
-                                        continue;
-                                    }
-                                }
-                                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                                data = await res.arrayBuffer();
-
-                                // Verify hash
-                                const hash = await hashData(data);
-                                if (hash !== fileInfo.chunkHashes[this.currentChunk]) {
-                                    data = null;
-                                    continue;
-                                }
-                            } catch (err) {
-                                attempt++;
-                                await new Promise(r => setTimeout(r, Math.min(attempt * 1000, 5000)));
-                            }
-                        }
-
-                        bytesDownloaded += data.byteLength;
-                        const progress = (bytesDownloaded / fileInfo.size * 100);
-                        progressFill.style.width = progress.toFixed(1) + '%';
-                        progressPercent.textContent = progress.toFixed(0) + '%';
-
-                        const elapsed = (Date.now() - startTime) / 1000;
-                        if (elapsed > 0) {
-                            const speed = bytesDownloaded / elapsed;
-                            progressSpeed.textContent = formatBytes(speed) + '/s';
-                            const remaining = fileInfo.size - bytesDownloaded;
-                            progressEta.textContent = formatTime(remaining / speed);
-                        }
-
-                        controller.enqueue(new Uint8Array(data));
-                        this.currentChunk++;
-                    }
-                });
-
-                // Extract TAR to destination folder
-                status.textContent = 'Extracting files...';
-
-                try {
-                    for await (const progress of window.TarStream.extractTarToDirectory(tarStream, destDir)) {
-                        if (progress.type === 'file') {
-                            filesExtracted = progress.filesExtracted;
-                            status.textContent = `Extracted ${filesExtracted} files: ${progress.path}`;
-                        } else if (progress.type === 'directory') {
-                            status.textContent = `Creating folder: ${progress.path}`;
-                        } else if (progress.type === 'complete') {
-                            filesExtracted = progress.filesExtracted;
-                        }
-                    }
-
-                    status.className = 'status complete';
-                    status.textContent = `Extraction complete! ${filesExtracted} files extracted.`;
-                    progressFill.style.width = '100%';
-                    progressPercent.textContent = '100%';
-                    downloadBtn.disabled = true;
-                    downloadBtn.textContent = 'Completed';
-
-                } catch (err) {
-                    status.className = 'status error';
-                    status.textContent = 'Extraction error: ' + err.message;
-                    downloadBtn.disabled = false;
-                    downloadBtn.textContent = 'Retry Extraction';
-                }
-            };
-
-            try {
-                if (navigator.locks) {
-                    await navigator.locks.request('sendinator-extraction', doExtraction);
-                } else {
-                    await doExtraction();
-                }
-            } finally {
-                window.removeEventListener('beforeunload', preventClose);
-            }
         }
 
         loadFileInfo();

@@ -326,9 +326,9 @@
     </div>
 
     <a href="/admin" class="admin-link">Admin</a>
-    <div class="version">v3.3.0</div>
+    <div class="version">v3.4.0</div>
 
-    <script src="tar.js"></script>
+    <script src="zip.js"></script>
     <script>
         const PARALLEL_UPLOADS = 4;
         let serverConfig = null;  // Fetched from server
@@ -749,7 +749,7 @@
                 const file = items[0].file;
                 await handleSingleFile(file, CHUNK_SIZE);
             } else {
-                // Multiple files/folders - use TAR streaming
+                // Multiple files/folders - use ZIP streaming
                 await handleArchiveUpload(items, totalSize, fileCount, rootName, CHUNK_SIZE);
             }
         }
@@ -836,11 +836,9 @@
             status.className = 'status uploading';
             status.textContent = 'Creating archive...';
 
-            // Estimate TAR size (headers + padding)
-            const headerOverhead = items.length * 512; // 512 bytes per header
-            const paddingEstimate = items.length * 256; // Average padding
-            const estimatedTarSize = totalSize + headerOverhead + paddingEstimate + 1024; // +1024 for end marker
-            const totalChunks = Math.ceil(estimatedTarSize / CHUNK_SIZE);
+            // Estimate ZIP size
+            const estimatedZipSize = window.ZipStream.estimateZipSize(items);
+            const totalChunks = Math.ceil(estimatedZipSize / CHUNK_SIZE);
 
             chunkInfo.textContent = `~${totalChunks} chunks × ${formatBytes(CHUNK_SIZE)}`;
 
@@ -858,8 +856,8 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        filename: rootName + '.tar',
-                        size: estimatedTarSize,
+                        filename: rootName + '.zip',
+                        size: estimatedZipSize,
                         totalChunks,
                         type: 'archive',
                         fileCount,
@@ -877,10 +875,10 @@
                 shareLink.value = window.location.origin + url;
                 shareLinkContainer.style.display = 'block';
 
-                // Step 2: Create TAR stream and upload in chunks
-                console.log('Starting TAR stream upload...');
+                // Step 2: Create ZIP stream and upload in chunks
+                console.log('Starting ZIP stream upload...');
                 status.textContent = 'Uploading archive...';
-                await streamTarUpload(items, id, CHUNK_SIZE, totalSize);
+                await streamZipUpload(items, id, CHUNK_SIZE, estimatedZipSize);
 
                 status.className = 'status complete';
                 status.textContent = 'Upload complete! Share the link.';
@@ -906,29 +904,29 @@
             }
         }
 
-        async function streamTarUpload(items, id, CHUNK_SIZE, totalDataSize) {
-            console.log('streamTarUpload: creating TAR stream for', items.length, 'items');
+        async function streamZipUpload(items, id, CHUNK_SIZE, estimatedTotalSize) {
+            console.log('streamZipUpload: creating ZIP stream for', items.length, 'items');
 
-            // Create async iterator from items array for TAR stream
+            // Create async iterator from items array for ZIP stream
             async function* itemIterator() {
                 let count = 0;
                 for (const item of items) {
                     count++;
-                    if (count % 1000 === 0) console.log('TAR iterator yielded', count, 'items');
+                    if (count % 1000 === 0) console.log('ZIP iterator yielded', count, 'items');
                     yield item;
                 }
-                console.log('TAR iterator complete:', count, 'items');
+                console.log('ZIP iterator complete:', count, 'items');
             }
 
-            // Create TAR stream with file progress callback
+            // Create ZIP stream with file progress callback
             let filesProcessed = 0;
             const totalItems = items.length;
-            const tarStream = window.TarStream.createTarStream(itemIterator(), (path, size, isDir, index) => {
+            const zipStream = window.ZipStream.createZipStream(itemIterator(), (path, size, isDir, index) => {
                 filesProcessed = index + 1;
                 chunkInfo.textContent = `Packing ${filesProcessed.toLocaleString()} / ${totalItems.toLocaleString()} files`;
             });
-            const reader = tarStream.getReader();
-            console.log('TAR stream reader created');
+            const reader = zipStream.getReader();
+            console.log('ZIP stream reader created');
 
             let buffer = new Uint8Array(0);
             let chunkIndex = 0;
@@ -946,13 +944,13 @@
             // Upload chunks as they become available
             const uploadPromises = [];
 
-            console.log('Starting TAR stream read loop...');
+            console.log('Starting ZIP stream read loop...');
             let readCount = 0;
             while (true) {
                 const { value, done } = await reader.read();
                 readCount++;
                 if (readCount <= 5 || readCount % 1000 === 0) {
-                    console.log('TAR read #' + readCount, value ? value.length + ' bytes' : 'no data', done ? 'DONE' : '');
+                    console.log('ZIP read #' + readCount, value ? value.length + ' bytes' : 'no data', done ? 'DONE' : '');
                 }
 
                 if (value) {
@@ -967,9 +965,9 @@
 
                     const currentIndex = chunkIndex++;
                     console.log('Uploading chunk', currentIndex, 'size:', chunk.length);
-                    const uploadPromise = uploadTarChunk(id, currentIndex, chunk).then(() => {
+                    const uploadPromise = uploadZipChunk(id, currentIndex, chunk).then(() => {
                         // Update progress based on data processed
-                        const progress = Math.min(100, (totalBytesProcessed / (totalDataSize * 1.1)) * 100);
+                        const progress = Math.min(100, (totalBytesProcessed / estimatedTotalSize) * 100);
                         progressFill.style.width = progress.toFixed(1) + '%';
                         progressPercent.textContent = progress.toFixed(0) + '%';
 
@@ -999,7 +997,7 @@
             // Upload final partial chunk if any
             if (buffer.length > 0) {
                 const currentIndex = chunkIndex++;
-                uploadPromises.push(uploadTarChunk(id, currentIndex, buffer));
+                uploadPromises.push(uploadZipChunk(id, currentIndex, buffer));
             }
 
             // Wait for all uploads to complete
@@ -1016,7 +1014,7 @@
             }
         }
 
-        async function uploadTarChunk(id, index, chunk) {
+        async function uploadZipChunk(id, index, chunk) {
             // Hash the chunk
             const hashBuffer = await crypto.subtle.digest('SHA-256', chunk);
             const hashArray = Array.from(new Uint8Array(hashBuffer));
