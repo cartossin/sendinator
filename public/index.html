@@ -904,16 +904,23 @@
         }
 
         async function streamTarUpload(items, id, CHUNK_SIZE, totalDataSize) {
+            console.log('streamTarUpload: creating TAR stream for', items.length, 'items');
+
             // Create async iterator from items array for TAR stream
             async function* itemIterator() {
+                let count = 0;
                 for (const item of items) {
+                    count++;
+                    if (count % 1000 === 0) console.log('TAR iterator yielded', count, 'items');
                     yield item;
                 }
+                console.log('TAR iterator complete:', count, 'items');
             }
 
             // Create TAR stream
             const tarStream = window.TarStream.createTarStream(itemIterator());
             const reader = tarStream.getReader();
+            console.log('TAR stream reader created');
 
             let buffer = new Uint8Array(0);
             let chunkIndex = 0;
@@ -931,8 +938,14 @@
             // Upload chunks as they become available
             const uploadPromises = [];
 
+            console.log('Starting TAR stream read loop...');
+            let readCount = 0;
             while (true) {
                 const { value, done } = await reader.read();
+                readCount++;
+                if (readCount <= 5 || readCount % 1000 === 0) {
+                    console.log('TAR read #' + readCount, value ? value.length + ' bytes' : 'no data', done ? 'DONE' : '');
+                }
 
                 if (value) {
                     appendToBuffer(value);
@@ -945,6 +958,7 @@
                     buffer = buffer.slice(CHUNK_SIZE);
 
                     const currentIndex = chunkIndex++;
+                    console.log('Uploading chunk', currentIndex, 'size:', chunk.length);
                     const uploadPromise = uploadTarChunk(id, currentIndex, chunk).then(() => {
                         // Update progress based on data processed
                         const progress = Math.min(100, (totalBytesProcessed / (totalDataSize * 1.1)) * 100);
