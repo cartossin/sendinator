@@ -244,30 +244,6 @@ function parseTarHeader(header) {
     return { name, size, isDirectory, mtime };
 }
 
-// Sanitize filename for File System Access API
-function sanitizeFileName(name) {
-    if (!name) return '_empty_';
-
-    // Replace characters not allowed by Windows/Chrome File System Access API
-    let sanitized = name
-        .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')  // Illegal chars
-        .replace(/^\.+/, '_')                      // Leading dots
-        .replace(/\.+$/, '')                       // Trailing dots
-        .replace(/\s+$/, '')                       // Trailing spaces
-        .trim();
-
-    // Windows reserved names
-    const reserved = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
-    if (reserved.test(sanitized.split('.')[0])) {
-        sanitized = '_' + sanitized;
-    }
-
-    // Ensure not empty after sanitization
-    if (!sanitized) sanitized = '_unnamed_';
-
-    return sanitized;
-}
-
 // Extract TAR stream to FileSystemDirectoryHandle
 // Returns async generator yielding progress updates
 async function* extractTarToDirectory(tarStream, destDir, onProgress) {
@@ -324,27 +300,30 @@ async function* extractTarToDirectory(tarStream, destDir, onProgress) {
             cleanPath = cleanPath.slice(0, -1);
         }
 
-        const pathParts = cleanPath.split('/').map(sanitizeFileName);
+        const pathParts = cleanPath.split('/');
         const fileName = pathParts.pop();
 
         if (header.isDirectory) {
             // Create directory
-            try {
-                await ensureDir(destDir, [...pathParts, fileName]);
-                filesExtracted++;
-                yield { type: 'directory', path: cleanPath, filesExtracted, bytesRead: totalBytesRead };
-            } catch (err) {
-                console.warn('Failed to create directory:', cleanPath, err.message);
-                // Continue with next entry
-            }
+            await ensureDir(destDir, [...pathParts, fileName]);
+            filesExtracted++;
+            yield { type: 'directory', path: cleanPath, filesExtracted, bytesRead: totalBytesRead };
         } else {
-            // Create parent directories and file
-            let writable = null;
-            try {
-                const parentDir = await ensureDir(destDir, pathParts);
-                const fileHandle = await parentDir.getFileHandle(fileName, { create: true });
-                writable = await fileHandle.createWritable();
+            // Create parent directories
+            const parentDir = await ensureDir(destDir, pathParts);
 
+            // Create and write file
+            let fileHandle;
+            try {
+                fileHandle = await parentDir.getFileHandle(fileName, { create: true });
+            } catch (err) {
+                console.error('getFileHandle failed for:', JSON.stringify(fileName), 'full path:', cleanPath);
+                console.error('Error:', err.name, err.message);
+                throw new Error(`Cannot create file "${fileName}": ${err.message}`);
+            }
+            const writable = await fileHandle.createWritable();
+
+            try {
                 // Read file data in chunks
                 let remaining = header.size;
                 while (remaining > 0) {
@@ -356,21 +335,10 @@ async function* extractTarToDirectory(tarStream, destDir, onProgress) {
                 }
 
                 await writable.close();
-                filesExtracted++;
-                yield { type: 'file', path: cleanPath, size: header.size, filesExtracted, bytesRead: totalBytesRead };
             } catch (err) {
-                console.warn('Failed to extract file:', cleanPath, '->', fileName, err.message);
-                // Clean up writable if it was opened
-                if (writable) {
-                    try { await writable.abort(); } catch (e) { /* ignore */ }
-                }
-                // Still need to skip the file data and padding
-                let remaining = header.size;
-                while (remaining > 0) {
-                    const chunkSize = Math.min(remaining, 65536);
-                    await readBytes(chunkSize);
-                    remaining -= chunkSize;
-                }
+                // Clean up on error
+                try { await writable.abort(); } catch (e) { /* ignore */ }
+                throw err;
             }
 
             // Skip padding
@@ -378,6 +346,9 @@ async function* extractTarToDirectory(tarStream, destDir, onProgress) {
             if (padding > 0) {
                 await readBytes(padding);
             }
+
+            filesExtracted++;
+            yield { type: 'file', path: cleanPath, size: header.size, filesExtracted, bytesRead: totalBytesRead };
         }
     }
 
