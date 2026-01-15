@@ -168,6 +168,7 @@ function createTarStream(files) {
                     currentFile = value;
                     headerSent = false;
                     currentReader = null;
+                    console.log('TAR processing:', currentFile.path, currentFile.isDirectory ? '(dir)' : currentFile.file?.size + ' bytes');
                 }
 
                 // Send header if not sent yet
