@@ -153,6 +153,9 @@
         .home-link:hover { text-decoration: underline; }
         .version { position: fixed; bottom: 10px; right: 10px; color: #444; font-size: 0.75em; }
         .archive-info { color: #667eea; font-size: 0.85em; margin-top: 4px; }
+        .extract-note { font-size: 0.8em; color: #888; margin-top: 8px; text-align: center; }
+        .tar-modal p { color: #ccc; line-height: 1.6; margin: 0 0 15px 0; }
+        .tar-modal p:last-of-type { margin-bottom: 0; }
     </style>
 </head>
 <body>
@@ -171,6 +174,7 @@
         </div>
 
         <button class="download-btn" id="downloadBtn" disabled>Loading...</button>
+        <div class="extract-note" id="extractNote" style="display: none;">Note: Chrome may ask you to create a new folder to extract into</div>
 
         <div class="progress-container" id="progressContainer">
             <div class="progress-bar">
@@ -224,6 +228,16 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="tarModalOverlay" onclick="closeTarModal()">
+        <div class="modal tar-modal" onclick="event.stopPropagation()">
+            <h3>About .tar Archives</h3>
+            <p>This download contains multiple files packaged into a single .tar archive.</p>
+            <p>On <strong>Chrome or Edge</strong>, click "Extract to Folder" to extract files directly to your computer.</p>
+            <p>On <strong>other browsers</strong>, download the .tar file and extract it using your system's archive tool (7-Zip, WinRAR, The Unarchiver, or built-in tools on Mac/Linux).</p>
+            <button class="modal-close" onclick="closeTarModal()">Got it</button>
+        </div>
+    </div>
+
     <div class="download-card not-found" id="notFound" style="display: none;">
         <h2>File Not Found</h2>
         <p>This file may have expired or been deleted.</p>
@@ -262,6 +276,7 @@
         const chunkInfo = document.getElementById('chunkInfo');
         const directLinkContainer = document.getElementById('directLinkContainer');
         const directLink = document.getElementById('directLink');
+        const extractNote = document.getElementById('extractNote');
         let refreshInterval = null;
 
         async function loadFileInfo() {
@@ -323,6 +338,7 @@
                     if (supportsDirectoryPicker) {
                         // Chrome/Edge - can extract to folder
                         downloadBtn.disabled = false;
+                        extractNote.style.display = 'block';
                         if (fileInfo.complete) {
                             downloadBtn.textContent = 'Extract to Folder';
                             status.className = 'status complete';
@@ -336,6 +352,7 @@
                         // Safari/Firefox - point to direct TAR download
                         downloadBtn.disabled = true;
                         downloadBtn.textContent = 'Extract to Folder';
+                        extractNote.style.display = 'none';
                         status.className = 'status warning';
                         if (fileInfo.complete) {
                             status.innerHTML = 'Folder extraction requires Chrome/Edge. Download the .tar file below and extract locally.';
@@ -370,8 +387,11 @@
                 // Show direct link section
                 if (fileInfo.complete) {
                     directLink.href = `/api/download/${fileId}`;
-                    const linkText = isArchive ? 'Download .tar file' : 'Direct link';
-                    directLinkContainer.innerHTML = `<a href="/api/download/${fileId}" target="_blank">${linkText}</a>`;
+                    if (isArchive) {
+                        directLinkContainer.innerHTML = `<a href="/api/download/${fileId}" target="_blank">Direct link</a> (.tar archive) - <span class="learn-more" onclick="showTarModal()">Learn more</span>`;
+                    } else {
+                        directLinkContainer.innerHTML = `<a href="/api/download/${fileId}" target="_blank">Direct link</a>`;
+                    }
                     directLinkContainer.style.display = 'block';
                 } else if (!supportsProgressiveDownload && !isArchive) {
                     // Unsupported browser + still uploading: show placeholder with progress
@@ -380,7 +400,7 @@
                     directLinkContainer.style.display = 'block';
                 } else if (isArchive && !supportsDirectoryPicker) {
                     if (fileInfo.complete) {
-                        directLinkContainer.innerHTML = `<a href="/api/download/${fileId}" target="_blank">Download .tar file</a>`;
+                        directLinkContainer.innerHTML = `<a href="/api/download/${fileId}" target="_blank">Direct link</a> (.tar archive) - <span class="learn-more" onclick="showTarModal()">Learn more</span>`;
                     } else {
                         const pct = (fileInfo.chunksReceived / fileInfo.totalChunks * 100).toFixed(0);
                         directLinkContainer.innerHTML = `.tar download will appear here. File is still uploading (${pct}%)`;
@@ -404,6 +424,14 @@
 
         function closeModal() {
             document.getElementById('modalOverlay').classList.remove('active');
+        }
+
+        function showTarModal() {
+            document.getElementById('tarModalOverlay').classList.add('active');
+        }
+
+        function closeTarModal() {
+            document.getElementById('tarModalOverlay').classList.remove('active');
         }
 
         downloadBtn.addEventListener('click', startDownload);
