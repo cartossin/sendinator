@@ -200,13 +200,16 @@
             display: flex;
             gap: 8px;
         }
-        .copy-key-btn, .delete-key-btn {
+        .copy-key-btn, .delete-key-btn, .upload-link-btn {
             padding: 6px 12px;
             border-radius: 6px;
             font-size: 0.85em;
             cursor: pointer;
             border: 1px solid;
+            text-decoration: none;
         }
+        .upload-link-btn { background: transparent; border-color: #10b981; color: #10b981; }
+        .upload-link-btn:hover { background: #10b981; color: white; }
         .eye-btn-inline {
             background: transparent;
             border: none;
@@ -435,7 +438,7 @@
         </div>
     </div>
 
-    <div class="version">v3.5.0</div>
+    <div class="version">v3.6.0</div>
 
     <script>
         let keys = [];
@@ -698,6 +701,7 @@
                                 `}
                             </div>
                             <div class="key-actions" onclick="event.stopPropagation()">
+                                <a class="upload-link-btn" href="/#${k.key}">Upload</a>
                                 <button class="delete-key-btn" onclick="deleteKey('${k.key}')">Delete</button>
                             </div>
                         </div>

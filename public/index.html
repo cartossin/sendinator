@@ -326,7 +326,7 @@
     </div>
 
     <a href="/admin" class="admin-link">Admin</a>
-    <div class="version">v3.5.0</div>
+    <div class="version">v3.6.0</div>
 
     <script src="zip.js"></script>
     <script>
@@ -459,10 +459,20 @@
         if (window.location.hash) {
             const hashKey = window.location.hash.slice(1);
             if (hashKey) {
-                keyInput.value = hashKey;
                 // Clear hash from URL without triggering navigation
                 history.replaceState(null, '', window.location.pathname);
-                handleLogin();
+                // Logout any existing session first, then login with new key
+                (async () => {
+                    if (currentSession) {
+                        try {
+                            await fetch('/api/key/logout', { method: 'POST' });
+                        } catch (err) {}
+                        currentSession = null;
+                        showLoginUI();
+                    }
+                    keyInput.value = hashKey;
+                    handleLogin();
+                })();
             }
         }
 
