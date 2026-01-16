@@ -358,7 +358,7 @@
         </div>
     </div>
 
-    <div class="version">v3.11.0</div>
+    <div class="version">v3.11.1</div>
 
     <script>
         let keys = [];
@@ -619,6 +619,11 @@
                     case 'quota':
                         cmp = a.quotaBytes - b.quotaBytes;
                         break;
+                    case 'progress':
+                        const aProgress = a.quotaBytes > 0 ? a.usedBytes / a.quotaBytes : 0;
+                        const bProgress = b.quotaBytes > 0 ? b.usedBytes / b.quotaBytes : 0;
+                        cmp = aProgress - bProgress;
+                        break;
                     case 'created':
                         cmp = (a.createdAt || 0) - (b.createdAt || 0);
                         break;
@@ -656,6 +661,9 @@
                             <th class="right ${keysSortColumn === 'quota' ? 'active' : ''}" onclick="setKeysSort('quota')">
                                 Quota<span class="sort-icon">${sortIcon('quota')}</span>
                             </th>
+                            <th class="${keysSortColumn === 'progress' ? 'active' : ''}" onclick="setKeysSort('progress')">
+                                Progress<span class="sort-icon">${sortIcon('progress')}</span>
+                            </th>
                             <th class="right ${keysSortColumn === 'created' ? 'active' : ''}" onclick="setKeysSort('created')">
                                 Created<span class="sort-icon">${sortIcon('created')}</span>
                             </th>
@@ -666,27 +674,29 @@
             `;
 
             if (filteredKeys.length === 0 && keysSearchQuery) {
-                html += `<tr><td colspan="6" style="text-align: center; color: #555; padding: 20px;">No keys match your search.</td></tr>`;
+                html += `<tr><td colspan="7" style="text-align: center; color: #755; padding: 20px;">No keys match your search.</td></tr>`;
             } else {
                 for (const k of filteredKeys) {
                     const usedPercent = k.quotaBytes > 0 ? (k.usedBytes / k.quotaBytes * 100) : 0;
                     const quotaClass = usedPercent >= 100 ? 'danger' : usedPercent > 90 ? 'warning' : '';
 
                     html += `
-                        <tr>
+                        <tr data-key="${k.key}">
                             <td style="color: #ccc;">${escapeHtml(k.label) || '(No label)'}</td>
-                            <td style="text-align: right; color: #888;">${k.uploads.length}</td>
-                            <td style="text-align: right; color: #888;">${formatBytes(k.usedBytes)}</td>
-                            <td style="text-align: right;">
+                            <td style="text-align: right; color: #a88;">${k.uploads.length}</td>
+                            <td style="text-align: right; color: #a88;">${formatBytes(k.usedBytes)}</td>
+                            <td style="text-align: right; color: #888;">${formatBytes(k.quotaBytes)}</td>
+                            <td>
                                 <div class="quota-bar-small">
                                     <div class="quota-fill ${quotaClass}" style="width: ${Math.min(usedPercent, 100)}%"></div>
                                 </div>
-                                <span style="color: #666;">${formatBytes(k.quotaBytes)}</span>
+                                <span style="color: #a88;">${Math.round(usedPercent)}%</span>
                             </td>
-                            <td style="text-align: right; color: #666;">${formatDateShort(k.createdAt)}</td>
+                            <td style="text-align: right; color: #888;">${formatDateShort(k.createdAt)}</td>
                             <td class="key-actions-cell" style="text-align: right;">
                                 <a href="/#${k.key}">Upload</a>
                                 <button onclick="copyKeyToClipboard('${k.key}')">Copy</button>
+                                <button onclick="editKeyQuota('${k.key}')">Edit</button>
                                 <button onclick="deleteKey('${k.key}')">Delete</button>
                             </td>
                         </tr>
@@ -847,6 +857,55 @@
             navigator.clipboard.writeText(key).then(() => {
                 // Brief feedback could be added here
             });
+        }
+
+        async function editKeyQuota(key) {
+            const keyData = keys.find(k => k.key === key);
+            if (!keyData) return;
+
+            const currentQuota = formatBytes(keyData.quotaBytes);
+            const input = prompt(`Enter new quota for "${keyData.label || key}":\n\nCurrent: ${currentQuota}\n\nExamples: 5 GiB, 500 MiB, 1 TiB`, currentQuota);
+
+            if (!input) return;
+
+            // Parse the input
+            const match = input.trim().match(/^([\d.]+)\s*(MiB|GiB|TiB|MB|GB|TB)?$/i);
+            if (!match) {
+                alert('Invalid format. Use format like: 10 GiB, 500 MiB, 1 TiB');
+                return;
+            }
+
+            const value = parseFloat(match[1]);
+            let unit = (match[2] || 'GiB').toUpperCase();
+            // Normalize units
+            if (unit === 'MB') unit = 'MiB';
+            if (unit === 'GB') unit = 'GiB';
+            if (unit === 'TB') unit = 'TiB';
+
+            if (isNaN(value) || value <= 0) {
+                alert('Please enter a valid positive number');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/admin/keys/${key}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${sessionToken}`
+                    },
+                    body: JSON.stringify({ quotaValue: value, quotaUnit: unit })
+                });
+
+                if (res.ok) {
+                    loadKeys();
+                } else {
+                    const data = await res.json();
+                    alert(data.error || 'Failed to update quota');
+                }
+            } catch (err) {
+                alert('Failed to update quota: ' + err.message);
+            }
         }
 
         async function createKey() {
