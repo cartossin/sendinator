@@ -323,6 +323,30 @@
             align-items: center;
             margin-bottom: 15px;
         }
+        /* Search box */
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .search-input {
+            flex: 1;
+            padding: 10px 14px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #ccc;
+            font-size: 1em;
+        }
+        .search-input:focus { outline: none; border-color: #555; }
+        .search-input::placeholder { color: #555; }
+        /* Sortable headers */
+        .keys-header .sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+        .keys-header .sortable:hover { color: #aaa; }
+        .keys-header .sortable.active { color: #ccc; }
+        .keys-header .sort-icon { margin-left: 4px; font-size: 0.8em; }
         .version { position: fixed; bottom: 10px; right: 10px; color: #333; font-size: 0.75em; }
         .new-key-display {
             margin-top: 15px;
@@ -406,6 +430,10 @@
             <h2>Upload Keys</h2>
         </div>
 
+        <div class="search-box">
+            <input type="text" class="search-input" id="searchInput" placeholder="Search keys, labels, or filenames..." oninput="handleSearch()">
+        </div>
+
         <div id="keysList"></div>
         <div class="empty-state" id="emptyState" style="display: none;">
             No upload keys yet. Create one above to get started.
@@ -419,7 +447,7 @@
         </div>
     </div>
 
-    <div class="version">v3.8.0</div>
+    <div class="version">v3.9.0</div>
 
     <script>
         let keys = [];
@@ -428,6 +456,9 @@
         let expandedKeys = new Set();
         let revealedKeys = new Set();
         let editingQuotaKey = null;
+        let searchQuery = '';
+        let sortColumn = 'created';
+        let sortDirection = 'desc';
 
         const authContainer = document.getElementById('authContainer');
         const adminPanel = document.getElementById('adminPanel');
@@ -629,7 +660,59 @@
             document.getElementById('totalSize').textContent = formatBytes(totalSize);
         }
 
+        function handleSearch() {
+            searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+            renderKeys();
+        }
+
+        function setSort(column) {
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = column === 'label' ? 'asc' : 'desc';
+            }
+            renderKeys();
+        }
+
+        function getFilteredAndSortedKeys() {
+            // Filter
+            let filtered = keys;
+            if (searchQuery) {
+                filtered = keys.filter(k => {
+                    const labelMatch = (k.label || '').toLowerCase().includes(searchQuery);
+                    const keyMatch = k.key.toLowerCase().includes(searchQuery);
+                    const filenameMatch = k.uploads.some(u => u.filename.toLowerCase().includes(searchQuery));
+                    return labelMatch || keyMatch || filenameMatch;
+                });
+            }
+
+            // Sort
+            const sorted = [...filtered].sort((a, b) => {
+                let cmp = 0;
+                switch (sortColumn) {
+                    case 'label':
+                        cmp = (a.label || '').localeCompare(b.label || '');
+                        break;
+                    case 'created':
+                        cmp = (a.createdAt || 0) - (b.createdAt || 0);
+                        break;
+                    case 'quota':
+                        cmp = (a.usedBytes / a.quotaBytes) - (b.usedBytes / b.quotaBytes);
+                        break;
+                    case 'files':
+                        cmp = a.uploads.length - b.uploads.length;
+                        break;
+                }
+                return sortDirection === 'asc' ? cmp : -cmp;
+            });
+
+            return sorted;
+        }
+
         function renderKeys() {
+            const filteredKeys = getFilteredAndSortedKeys();
+
             if (keys.length === 0) {
                 keysList.innerHTML = '';
                 emptyState.style.display = 'block';
@@ -637,15 +720,32 @@
             }
             emptyState.style.display = 'none';
 
+            const sortIcon = (col) => sortColumn === col ? (sortDirection === 'asc' ? '▲' : '▼') : '';
+
             const header = `
                 <div class="keys-header">
-                    <div class="col-label">Label / Upload Key</div>
-                    <div class="col-quota">Quota Used</div>
-                    <div class="col-actions"></div>
+                    <div class="col-label sortable ${sortColumn === 'label' ? 'active' : ''}" onclick="setSort('label')">
+                        Label / Key<span class="sort-icon">${sortIcon('label')}</span>
+                    </div>
+                    <div class="col-quota sortable ${sortColumn === 'quota' ? 'active' : ''}" onclick="setSort('quota')" style="width: 100px; text-align: right;">
+                        Quota<span class="sort-icon">${sortIcon('quota')}</span>
+                    </div>
+                    <div class="sortable ${sortColumn === 'files' ? 'active' : ''}" onclick="setSort('files')" style="width: 60px; text-align: right;">
+                        Files<span class="sort-icon">${sortIcon('files')}</span>
+                    </div>
+                    <div class="sortable ${sortColumn === 'created' ? 'active' : ''}" onclick="setSort('created')" style="width: 100px; text-align: right;">
+                        Created<span class="sort-icon">${sortIcon('created')}</span>
+                    </div>
+                    <div class="col-actions" style="width: 140px;"></div>
                 </div>
             `;
 
-            keysList.innerHTML = header + keys.map(k => {
+            if (filteredKeys.length === 0 && searchQuery) {
+                keysList.innerHTML = header + '<div class="empty-state">No keys match your search.</div>';
+                return;
+            }
+
+            keysList.innerHTML = header + filteredKeys.map(k => {
                 const usedPercent = k.quotaBytes > 0 ? (k.usedBytes / k.quotaBytes * 100) : 0;
                 const quotaClass = usedPercent >= 100 ? 'danger' : usedPercent > 90 ? 'warning' : '';
                 const isExpanded = expandedKeys.has(k.key);
