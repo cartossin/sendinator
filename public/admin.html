@@ -191,6 +191,16 @@
 
         .file-size-cell { color: #888; white-space: nowrap; }
         .file-date-cell { color: #888; white-space: nowrap; }
+        .file-progress-bar {
+            width: 60px;
+            height: 4px;
+            background: #222;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        .file-progress-fill { height: 100%; background: #a44; }
+        .file-progress-fill.complete { background: #6a6; }
         .file-actions-cell { white-space: nowrap; }
         .file-actions-cell button {
             padding: 4px 8px;
@@ -833,6 +843,11 @@
                     case 'size':
                         cmp = a.size - b.size;
                         break;
+                    case 'progress':
+                        const aProgress = a.totalChunks > 0 ? a.chunksReceived / a.totalChunks : 0;
+                        const bProgress = b.totalChunks > 0 ? b.chunksReceived / b.totalChunks : 0;
+                        cmp = aProgress - bProgress;
+                        break;
                     case 'complete':
                         const aComplete = a.totalChunks > 0 && a.chunksReceived === a.totalChunks ? 1 : 0;
                         const bComplete = b.totalChunks > 0 && b.chunksReceived === b.totalChunks ? 1 : 0;
@@ -873,6 +888,9 @@
                             <th class="right ${filesSortColumn === 'size' ? 'active' : ''}" onclick="setFilesSort('size')">
                                 Size<span class="sort-icon">${sortIcon('size')}</span>
                             </th>
+                            <th class="${filesSortColumn === 'progress' ? 'active' : ''}" onclick="setFilesSort('progress')">
+                                Progress<span class="sort-icon">${sortIcon('progress')}</span>
+                            </th>
                             <th class="${filesSortColumn === 'complete' ? 'active' : ''}" onclick="setFilesSort('complete')">
                                 Complete<span class="sort-icon">${sortIcon('complete')}</span>
                             </th>
@@ -886,10 +904,11 @@
             `;
 
             if (files.length === 0 && filesSearchQuery) {
-                html += `<tr><td colspan="6" style="text-align: center; color: #555; padding: 20px;">No files match your search.</td></tr>`;
+                html += `<tr><td colspan="7" style="text-align: center; color: #755; padding: 20px;">No files match your search.</td></tr>`;
             } else {
                 for (const f of files) {
                     const isComplete = f.totalChunks > 0 && f.chunksReceived === f.totalChunks;
+                    const progressPct = f.totalChunks > 0 ? Math.round(f.chunksReceived / f.totalChunks * 100) : 0;
 
                     html += `
                         <tr>
@@ -898,7 +917,13 @@
                                 <a class="file-name-link" href="/download/${f.id}" title="${escapeHtml(f.filename)}">${escapeHtml(f.filename)}</a>
                             </td>
                             <td class="file-size-cell" style="text-align: right;">${formatBytes(f.size)}</td>
-                            <td style="color: ${isComplete ? '#888' : '#666'};">${isComplete ? 'Complete' : 'Incomplete'}</td>
+                            <td>
+                                <div class="file-progress-bar">
+                                    <div class="file-progress-fill ${isComplete ? 'complete' : ''}" style="width: ${progressPct}%"></div>
+                                </div>
+                                <span style="color: #a88; font-size: 0.85em;">${progressPct}%</span>
+                            </td>
+                            <td style="color: ${isComplete ? '#8a8' : '#a66'};">${isComplete ? 'Complete' : 'Incomplete'}</td>
                             <td class="file-date-cell" style="text-align: right;">${formatDateShort(f.createdAt)}</td>
                             <td class="file-actions-cell" style="text-align: right;">
                                 <button onclick="copyLink('${f.id}')">Copy</button>
