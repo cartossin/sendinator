@@ -39,31 +39,30 @@
         }
         .home-link:hover { color: #e55; text-decoration: underline; }
 
-        /* Auth section */
+        /* Auth section - grayscale until authenticated */
         .auth-container {
             max-width: 400px;
             margin: 100px auto;
-            background: #1a1a1a;
+            background: #222;
             padding: 40px;
             text-align: center;
-            border: 2px solid #900;
         }
-        .auth-container h2 { margin: 0 0 10px 0; color: #e44; }
-        .auth-container p { color: #888; margin-bottom: 30px; }
+        .auth-container h2 { margin: 0 0 10px 0; color: #eee; }
+        .auth-container p { color: #666; margin-bottom: 30px; }
         .auth-btn {
             display: block;
             width: 100%;
             padding: 16px;
-            background: #b00;
-            color: #fff;
+            background: #444;
+            color: #ddd;
             border: none;
             font-size: 1.1em;
             font-weight: 600;
             cursor: pointer;
         }
-        .auth-btn:hover { background: #d00; }
+        .auth-btn:hover { background: #555; }
         .auth-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        .auth-error { color: #f66; margin-top: 15px; }
+        .auth-error { color: #888; margin-top: 15px; }
 
         /* Admin panel */
         .admin-panel { display: none; }
@@ -358,7 +357,7 @@
         </div>
     </div>
 
-    <div class="version">v3.11.2</div>
+    <div class="version">v3.11.3</div>
 
     <script>
         let keys = [];
