@@ -538,6 +538,12 @@ const server = http.createServer(async (req, res) => {
                 return sendJson(res, 404, { error: 'File not found' });
             }
 
+            // Verify upload key session matches file owner
+            const keySession = verifyKeySession(req);
+            if (!keySession || keySession.key !== fileInfo.uploadKey) {
+                return sendJson(res, 403, { error: 'Not authorized to upload to this file' });
+            }
+
             if (chunkIndex < 0) {
                 return sendJson(res, 400, { error: 'Invalid chunk index' });
             }
@@ -654,6 +660,12 @@ const server = http.createServer(async (req, res) => {
             const fileInfo = files.get(id);
             if (!fileInfo) {
                 return sendJson(res, 404, { error: 'File not found' });
+            }
+
+            // Verify upload key session matches file owner
+            const keySession = verifyKeySession(req);
+            if (!keySession || keySession.key !== fileInfo.uploadKey) {
+                return sendJson(res, 403, { error: 'Not authorized to finalize this file' });
             }
 
             try {
