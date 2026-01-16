@@ -9,8 +9,8 @@
         body {
             margin: 0;
             min-height: 100vh;
-            background: #1a1a2e;
-            color: #eee;
+            background: #1a1a1a;
+            color: #ccc;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             display: flex;
             flex-direction: column;
@@ -21,17 +21,13 @@
         h1 {
             font-size: 2.5em;
             margin: 0 0 10px 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: #eee;
         }
-        .tagline { color: #888; margin-bottom: 40px; }
+        .tagline { color: #666; margin-bottom: 40px; }
         .download-card {
             width: 100%;
             max-width: 500px;
-            background: #252542;
-            border-radius: 20px;
+            background: #222;
             padding: 30px;
         }
         .file-info {
@@ -43,43 +39,39 @@
             border-bottom: 1px solid #333;
         }
         .file-icon { font-size: 3em; }
-        .file-details h2 { margin: 0 0 8px 0; word-break: break-all; font-size: 1.3em; }
-        .file-size { color: #888; font-size: 0.95em; }
-        .upload-progress { color: #fbbf24; font-size: 0.85em; margin-top: 4px; }
-        .upload-progress.complete { color: #10b981; }
+        .file-details h2 { margin: 0 0 8px 0; word-break: break-all; font-size: 1.3em; color: #ddd; }
+        .file-size { color: #666; font-size: 0.95em; }
+        .upload-progress { color: #888; font-size: 0.85em; margin-top: 4px; }
+        .upload-progress.complete { color: #999; }
         .download-btn {
             display: block;
             width: 100%;
             padding: 16px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: #444;
+            color: #ddd;
             border: none;
-            border-radius: 12px;
             font-size: 1.1em;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: background 0.2s;
         }
         .download-btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+            background: #555;
         }
         .download-btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
-            transform: none;
         }
         .progress-container { margin-top: 20px; display: none; }
         .progress-container.active { display: block; }
         .progress-bar {
             height: 10px;
-            background: #1a1a2e;
-            border-radius: 5px;
+            background: #1a1a1a;
             overflow: hidden;
         }
         .progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            background: #666;
             width: 0%;
             transition: width 0.2s ease;
         }
@@ -87,27 +79,26 @@
             display: flex;
             justify-content: space-between;
             font-size: 0.85em;
-            color: #888;
+            color: #666;
             margin-top: 10px;
         }
         .status {
             text-align: center;
             padding: 12px;
-            border-radius: 10px;
             margin-top: 15px;
             font-size: 0.95em;
         }
-        .status.loading { background: rgba(102, 126, 234, 0.2); color: #667eea; }
-        .status.downloading { background: rgba(102, 126, 234, 0.2); color: #667eea; }
-        .status.verifying { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
-        .status.complete { background: rgba(16, 185, 129, 0.2); color: #10b981; }
-        .status.error { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
-        .status.waiting { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
-        .status.warning { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
-        .chunk-info { font-size: 0.85em; color: #888; margin-top: 10px; text-align: center; }
-        .direct-link { font-size: 0.8em; color: #666; margin-top: 15px; text-align: center; }
-        .direct-link a { color: #667eea; }
-        .learn-more { color: #667eea; cursor: pointer; text-decoration: underline; }
+        .status.loading { background: #2a2a2a; color: #888; }
+        .status.downloading { background: #2a2a2a; color: #888; }
+        .status.verifying { background: #2a2a2a; color: #999; }
+        .status.complete { background: #2a2a2a; color: #aaa; }
+        .status.error { background: #2a2a2a; color: #888; }
+        .status.waiting { background: #2a2a2a; color: #888; }
+        .status.warning { background: #2a2a2a; color: #888; }
+        .chunk-info { font-size: 0.85em; color: #555; margin-top: 10px; text-align: center; }
+        .direct-link { font-size: 0.8em; color: #555; margin-top: 15px; text-align: center; }
+        .direct-link a { color: #888; }
+        .learn-more { color: #888; cursor: pointer; text-decoration: underline; }
         .modal-overlay {
             display: none;
             position: fixed;
@@ -119,40 +110,38 @@
         }
         .modal-overlay.active { display: flex; }
         .modal {
-            background: #252542;
-            border-radius: 16px;
+            background: #222;
             padding: 25px;
             max-width: 500px;
             width: 90%;
         }
-        .modal h3 { margin: 0 0 20px 0; color: #fff; }
+        .modal h3 { margin: 0 0 20px 0; color: #ddd; }
         .modal table { width: 100%; border-collapse: collapse; }
         .modal th, .modal td { padding: 10px; text-align: left; border-bottom: 1px solid #333; }
-        .modal th { color: #888; font-weight: normal; font-size: 0.9em; }
-        .modal td:first-child { color: #ccc; }
-        .modal .check { color: #10b981; }
-        .modal .cross { color: #666; }
+        .modal th { color: #666; font-weight: normal; font-size: 0.9em; }
+        .modal td:first-child { color: #aaa; }
+        .modal .check { color: #888; }
+        .modal .cross { color: #555; }
         .modal-close {
             margin-top: 20px;
             padding: 10px 20px;
-            background: #667eea;
-            color: white;
+            background: #444;
+            color: #ddd;
             border: none;
-            border-radius: 8px;
             cursor: pointer;
             width: 100%;
         }
         .not-found { text-align: center; }
-        .not-found h2 { color: #ef4444; margin-bottom: 10px; }
+        .not-found h2 { color: #888; margin-bottom: 10px; }
         .home-link {
             display: inline-block;
             margin-top: 20px;
-            color: #667eea;
+            color: #888;
             text-decoration: none;
         }
-        .home-link:hover { text-decoration: underline; }
-        .version { position: fixed; bottom: 10px; right: 10px; color: #444; font-size: 0.75em; }
-        .archive-info { color: #667eea; font-size: 0.85em; margin-top: 4px; }
+        .home-link:hover { color: #aaa; text-decoration: underline; }
+        .version { position: fixed; bottom: 10px; right: 10px; color: #333; font-size: 0.75em; }
+        .archive-info { color: #888; font-size: 0.85em; margin-top: 4px; }
     </style>
 </head>
 <body>

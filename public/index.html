@@ -9,8 +9,8 @@
         body {
             margin: 0;
             min-height: 100vh;
-            background: #1a1a2e;
-            color: #eee;
+            background: #1a1a1a;
+            color: #ccc;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             display: flex;
             flex-direction: column;
@@ -21,85 +21,77 @@
         h1 {
             font-size: 3em;
             margin: 0 0 10px 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: #eee;
         }
-        .tagline { color: #888; margin-bottom: 40px; }
+        .tagline { color: #666; margin-bottom: 40px; }
         .dropzone {
             width: 100%;
             max-width: 600px;
             min-height: 300px;
-            border: 3px dashed #444;
-            border-radius: 20px;
+            border: 2px dashed #444;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
             padding: 40px;
         }
         .dropzone:hover, .dropzone.dragover {
-            border-color: #667eea;
-            background: rgba(102, 126, 234, 0.1);
+            border-color: #888;
+            background: rgba(255, 255, 255, 0.02);
         }
         .dropzone-icon { font-size: 4em; margin-bottom: 20px; }
         .dropzone-text { font-size: 1.2em; color: #888; }
-        .dropzone-subtext { font-size: 0.9em; color: #666; margin-top: 10px; }
+        .dropzone-subtext { font-size: 0.9em; color: #555; margin-top: 10px; }
         input[type="file"] { display: none; }
 
         .upload-container {
             display: none;
             width: 100%;
             max-width: 600px;
-            background: #252542;
-            border-radius: 20px;
+            background: #222;
             padding: 30px;
         }
         .upload-container.active { display: block; }
         .file-info { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; }
         .file-icon { font-size: 2.5em; }
-        .file-details h3 { margin: 0 0 5px 0; word-break: break-all; }
-        .file-size { color: #888; font-size: 0.9em; }
+        .file-details h3 { margin: 0 0 5px 0; word-break: break-all; color: #ddd; }
+        .file-size { color: #666; font-size: 0.9em; }
         .share-link {
-            background: #1a1a2e;
-            border: 1px solid #444;
-            border-radius: 10px;
+            background: #1a1a1a;
+            border: 1px solid #333;
             padding: 15px;
             margin-bottom: 20px;
         }
-        .share-link label { display: block; font-size: 0.9em; color: #888; margin-bottom: 8px; }
+        .share-link label { display: block; font-size: 0.9em; color: #666; margin-bottom: 8px; }
         .share-link-input { display: flex; gap: 10px; }
         .share-link input {
             flex: 1;
             background: transparent;
             border: none;
-            color: #667eea;
+            color: #aaa;
             font-size: 1em;
             outline: none;
         }
         .copy-btn {
-            background: #667eea;
-            color: white;
+            background: #444;
+            color: #ddd;
             border: none;
             padding: 8px 16px;
-            border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
         }
-        .copy-btn:hover { background: #5a6fd6; }
+        .copy-btn:hover { background: #555; }
         .progress-container { margin-bottom: 15px; }
         .progress-bar {
             height: 8px;
-            background: #1a1a2e;
-            border-radius: 4px;
+            background: #1a1a1a;
             overflow: hidden;
         }
         .progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            background: #666;
             width: 0%;
             transition: width 0.2s ease;
         }
@@ -107,33 +99,31 @@
             display: flex;
             justify-content: space-between;
             font-size: 0.85em;
-            color: #888;
+            color: #666;
             margin-top: 8px;
         }
         .status {
             text-align: center;
             padding: 15px;
-            border-radius: 10px;
             margin-top: 10px;
         }
-        .status.hashing { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
-        .status.uploading { background: rgba(102, 126, 234, 0.2); color: #667eea; }
-        .status.complete { background: rgba(16, 185, 129, 0.2); color: #10b981; }
-        .status.error { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
-        .chunk-info { font-size: 0.85em; color: #888; margin-top: 10px; text-align: center; }
+        .status.hashing { background: #2a2a2a; color: #999; }
+        .status.uploading { background: #2a2a2a; color: #888; }
+        .status.complete { background: #2a2a2a; color: #aaa; }
+        .status.error { background: #2a2a2a; color: #888; }
+        .chunk-info { font-size: 0.85em; color: #555; margin-top: 10px; text-align: center; }
         .new-upload-btn {
             display: block;
             width: 100%;
             margin-top: 20px;
             padding: 12px;
             background: transparent;
-            border: 2px solid #444;
+            border: 1px solid #444;
             color: #888;
-            border-radius: 10px;
             cursor: pointer;
             font-size: 1em;
         }
-        .new-upload-btn:hover { border-color: #667eea; color: #667eea; }
+        .new-upload-btn:hover { border-color: #666; color: #aaa; }
         .admin-link {
             position: fixed;
             bottom: 10px;
@@ -142,34 +132,32 @@
             font-size: 0.75em;
             text-decoration: none;
         }
-        .admin-link:hover { color: #667eea; }
-        .version { position: fixed; bottom: 10px; right: 10px; color: #444; font-size: 0.75em; }
+        .admin-link:hover { color: #666; }
+        .version { position: fixed; bottom: 10px; right: 10px; color: #333; font-size: 0.75em; }
 
         /* Login container */
         .login-container {
             width: 100%;
             max-width: 400px;
-            background: #252542;
-            border-radius: 20px;
+            background: #222;
             padding: 30px;
             text-align: center;
         }
         .login-container h2 {
             margin: 0 0 10px 0;
-            color: #eee;
+            color: #ddd;
         }
         .login-container p {
-            color: #888;
+            color: #666;
             margin: 0 0 25px 0;
             font-size: 0.95em;
         }
         .key-input {
             width: 100%;
             padding: 14px;
-            background: #1a1a2e;
-            border: 2px solid #444;
-            border-radius: 10px;
-            color: #eee;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            color: #ccc;
             font-size: 1.1em;
             font-family: monospace;
             text-align: center;
@@ -178,31 +166,30 @@
         }
         .key-input:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #666;
         }
         .key-input::placeholder {
-            color: #555;
+            color: #444;
             letter-spacing: normal;
         }
         .login-btn {
             width: 100%;
             padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #444;
             border: none;
-            border-radius: 10px;
-            color: white;
+            color: #ddd;
             font-size: 1.1em;
             font-weight: 600;
             cursor: pointer;
-            transition: opacity 0.2s;
+            transition: background 0.2s;
         }
-        .login-btn:hover { opacity: 0.9; }
+        .login-btn:hover { background: #555; }
         .login-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
         .login-error {
-            color: #ef4444;
+            color: #888;
             margin-top: 15px;
             font-size: 0.9em;
             display: none;
@@ -213,8 +200,7 @@
             display: none;
             width: 100%;
             max-width: 600px;
-            background: #252542;
-            border-radius: 12px;
+            background: #222;
             padding: 15px 20px;
             margin-bottom: 20px;
             align-items: center;
@@ -228,32 +214,31 @@
         }
         .session-label {
             font-weight: 600;
-            color: #eee;
+            color: #ccc;
         }
         .session-quota {
             font-size: 0.85em;
-            color: #888;
+            color: #666;
         }
         .session-quota .remaining {
-            color: #10b981;
+            color: #999;
             font-weight: 600;
         }
         .session-quota .exceeded {
-            color: #ef4444;
+            color: #666;
         }
         .logout-btn {
             padding: 8px 16px;
             background: transparent;
-            border: 2px solid #444;
-            border-radius: 8px;
+            border: 1px solid #444;
             color: #888;
             font-size: 0.9em;
             cursor: pointer;
             transition: all 0.2s;
         }
         .logout-btn:hover {
-            border-color: #ef4444;
-            color: #ef4444;
+            border-color: #666;
+            color: #aaa;
         }
     </style>
 </head>

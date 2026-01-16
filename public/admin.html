@@ -9,20 +9,17 @@
         body {
             margin: 0;
             min-height: 100vh;
-            background: #1a1a2e;
-            color: #eee;
+            background: #1a1a1a;
+            color: #ccc;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             padding: 20px;
         }
         h1 {
             font-size: 2em;
             margin: 0 0 10px 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: #eee;
         }
-        h2 { margin: 0 0 15px 0; color: #fff; font-size: 1.3em; }
+        h2 { margin: 0 0 15px 0; color: #ddd; font-size: 1.3em; }
         .header {
             display: flex;
             justify-content: space-between;
@@ -35,37 +32,35 @@
             align-items: center;
         }
         .home-link {
-            color: #667eea;
+            color: #888;
             text-decoration: none;
         }
-        .home-link:hover { text-decoration: underline; }
+        .home-link:hover { color: #aaa; text-decoration: underline; }
 
         /* Auth section */
         .auth-container {
             max-width: 400px;
             margin: 100px auto;
-            background: #252542;
-            border-radius: 20px;
+            background: #222;
             padding: 40px;
             text-align: center;
         }
         .auth-container h2 { margin: 0 0 10px 0; }
-        .auth-container p { color: #888; margin-bottom: 30px; }
+        .auth-container p { color: #666; margin-bottom: 30px; }
         .auth-btn {
             display: block;
             width: 100%;
             padding: 16px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: #444;
+            color: #ddd;
             border: none;
-            border-radius: 12px;
             font-size: 1.1em;
             font-weight: 600;
             cursor: pointer;
         }
-        .auth-btn:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
-        .auth-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-        .auth-error { color: #ef4444; margin-top: 15px; }
+        .auth-btn:hover { background: #555; }
+        .auth-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .auth-error { color: #888; margin-top: 15px; }
 
         /* Admin panel */
         .admin-panel { display: none; }
@@ -73,8 +68,7 @@
 
         /* Create key form */
         .create-key-section {
-            background: #252542;
-            border-radius: 12px;
+            background: #222;
             padding: 20px;
             margin-bottom: 20px;
         }
@@ -85,31 +79,28 @@
             align-items: flex-end;
         }
         .form-group { display: flex; flex-direction: column; gap: 6px; }
-        .form-group label { font-size: 0.85em; color: #888; }
+        .form-group label { font-size: 0.85em; color: #666; }
         .form-group input {
             padding: 10px 14px;
-            background: #1a1a2e;
-            border: 1px solid #444;
-            border-radius: 8px;
-            color: #fff;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #ccc;
             font-size: 1em;
         }
-        .form-group input:focus { outline: none; border-color: #667eea; }
+        .form-group input:focus { outline: none; border-color: #555; }
         .create-btn {
             padding: 10px 20px;
-            background: #667eea;
-            color: white;
+            background: #444;
+            color: #ddd;
             border: none;
-            border-radius: 8px;
             font-weight: 600;
             cursor: pointer;
         }
-        .create-btn:hover { background: #5a6fd6; }
+        .create-btn:hover { background: #555; }
 
         /* Key card */
         .key-card {
-            background: #252542;
-            border-radius: 12px;
+            background: #222;
             margin-bottom: 12px;
             overflow: hidden;
         }
@@ -120,28 +111,27 @@
             cursor: pointer;
             gap: 15px;
         }
-        .key-header:hover { background: rgba(102, 126, 234, 0.1); }
+        .key-header:hover { background: rgba(255, 255, 255, 0.03); }
         .key-toggle {
             font-size: 0.9em;
-            color: #667eea;
+            color: #666;
             width: 20px;
             transition: transform 0.2s;
         }
         .key-card.expanded .key-toggle { transform: rotate(90deg); }
         .key-info { flex: 1; }
-        .key-label { font-weight: 600; font-size: 1.1em; }
+        .key-label { font-weight: 600; font-size: 1.1em; color: #ccc; }
         .key-label .key-string {
             font-family: monospace;
             font-size: 0.85em;
-            color: #888;
+            color: #666;
             margin-left: 10px;
             cursor: pointer;
             padding: 2px 6px;
-            border-radius: 4px;
             transition: background 0.2s;
             position: relative;
         }
-        .key-label .key-string:hover { background: rgba(102, 126, 234, 0.2); }
+        .key-label .key-string:hover { background: rgba(255, 255, 255, 0.1); }
         .key-label .key-string::after {
             content: attr(data-tooltip);
             position: absolute;
@@ -149,9 +139,8 @@
             left: 50%;
             transform: translateX(-50%);
             background: #333;
-            color: #fff;
+            color: #ccc;
             padding: 4px 8px;
-            border-radius: 4px;
             font-size: 0.75em;
             white-space: nowrap;
             opacity: 0;
@@ -160,12 +149,12 @@
             margin-bottom: 4px;
         }
         .key-label .key-string:hover::after { opacity: 1; }
-        .key-label .key-string.copied::after { content: 'Copied!'; background: #10b981; }
+        .key-label .key-string.copied::after { content: 'Copied!'; background: #555; }
         .keys-header {
             display: flex;
             padding: 10px 20px 10px 50px;
             font-size: 0.8em;
-            color: #666;
+            color: #555;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             border-bottom: 1px solid #333;
@@ -174,7 +163,7 @@
         .keys-header .col-label { flex: 1; }
         .keys-header .col-quota { width: 180px; text-align: right; }
         .keys-header .col-actions { width: 80px; text-align: right; }
-        .key-meta { font-size: 0.85em; color: #888; margin-top: 4px; }
+        .key-meta { font-size: 0.85em; color: #666; margin-top: 4px; }
         .key-quota {
             display: flex;
             flex-direction: column;
@@ -184,32 +173,30 @@
         .quota-bar {
             width: 150px;
             height: 6px;
-            background: #1a1a2e;
-            border-radius: 3px;
+            background: #1a1a1a;
             overflow: hidden;
         }
         .quota-fill {
             height: 100%;
-            background: #10b981;
+            background: #555;
             transition: width 0.3s;
         }
-        .quota-fill.warning { background: #f59e0b; }
-        .quota-fill.danger { background: #ef4444; }
-        .quota-text { font-size: 0.8em; color: #888; }
+        .quota-fill.warning { background: #666; }
+        .quota-fill.danger { background: #777; }
+        .quota-text { font-size: 0.8em; color: #666; }
         .key-actions {
             display: flex;
             gap: 8px;
         }
         .copy-key-btn, .delete-key-btn, .upload-link-btn {
             padding: 6px 12px;
-            border-radius: 6px;
             font-size: 0.85em;
             cursor: pointer;
             border: 1px solid;
             text-decoration: none;
         }
-        .upload-link-btn { background: transparent; border-color: #10b981; color: #10b981; }
-        .upload-link-btn:hover { background: #10b981; color: white; }
+        .upload-link-btn { background: transparent; border-color: #555; color: #888; }
+        .upload-link-btn:hover { background: #555; color: #ddd; }
         .eye-btn-inline {
             background: transparent;
             border: none;
@@ -221,12 +208,12 @@
             vertical-align: middle;
         }
         .eye-btn-inline:hover { opacity: 1; }
-        .copy-key-btn { background: transparent; border-color: #667eea; color: #667eea; }
-        .copy-key-btn:hover { background: #667eea; color: white; }
-        .delete-key-btn { background: transparent; border-color: #ef4444; color: #ef4444; }
-        .delete-key-btn:hover { background: #ef4444; color: white; }
-        .edit-quota-btn { background: transparent; border-color: #888; color: #888; }
-        .edit-quota-btn:hover { background: #888; color: white; }
+        .copy-key-btn { background: transparent; border-color: #555; color: #888; }
+        .copy-key-btn:hover { background: #555; color: #ddd; }
+        .delete-key-btn { background: transparent; border-color: #555; color: #888; }
+        .delete-key-btn:hover { background: #555; color: #ddd; }
+        .edit-quota-btn { background: transparent; border-color: #444; color: #666; }
+        .edit-quota-btn:hover { background: #444; color: #ccc; }
         .quota-edit-form {
             display: flex;
             gap: 6px;
@@ -235,10 +222,9 @@
         .quota-edit-form input {
             width: 60px;
             padding: 4px 8px;
-            background: #1a1a2e;
-            border: 1px solid #444;
-            border-radius: 4px;
-            color: #fff;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #ccc;
             font-size: 0.85em;
             -moz-appearance: textfield;
         }
@@ -249,28 +235,26 @@
         }
         .quota-edit-form select {
             padding: 4px 6px;
-            background: #1a1a2e;
-            border: 1px solid #444;
-            border-radius: 4px;
-            color: #fff;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #ccc;
             font-size: 0.85em;
         }
         .quota-edit-form button {
             padding: 4px 8px;
-            border-radius: 4px;
             font-size: 0.8em;
             cursor: pointer;
             border: 1px solid;
         }
-        .quota-save-btn { background: #10b981; border-color: #10b981; color: white; }
-        .quota-cancel-btn { background: transparent; border-color: #666; color: #888; }
+        .quota-save-btn { background: #444; border-color: #444; color: #ddd; }
+        .quota-cancel-btn { background: transparent; border-color: #444; color: #666; }
 
         /* Key uploads */
         .key-uploads {
             display: none;
             border-top: 1px solid #333;
             padding: 15px 20px;
-            background: #1e1e38;
+            background: #1a1a1a;
         }
         .key-card.expanded .key-uploads { display: block; }
         .upload-row {
@@ -286,37 +270,36 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            color: #667eea;
+            color: #888;
             text-decoration: none;
         }
         .upload-filename:hover {
+            color: #aaa;
             text-decoration: underline;
         }
-        .upload-size { color: #888; font-size: 0.9em; min-width: 80px; }
+        .upload-size { color: #666; font-size: 0.9em; min-width: 80px; }
         .upload-progress { min-width: 100px; }
         .progress-bar {
             height: 6px;
-            background: #1a1a2e;
-            border-radius: 3px;
+            background: #1a1a1a;
             overflow: hidden;
         }
-        .progress-fill { height: 100%; background: #ef4444; }
-        .progress-fill.complete { background: #10b981; }
-        .progress-text { font-size: 0.75em; color: #888; margin-top: 2px; }
+        .progress-fill { height: 100%; background: #555; }
+        .progress-fill.complete { background: #666; }
+        .progress-text { font-size: 0.75em; color: #555; margin-top: 2px; }
         .upload-actions { display: flex; gap: 8px; }
         .upload-actions button {
             padding: 4px 10px;
-            border-radius: 4px;
             font-size: 0.8em;
             cursor: pointer;
             border: 1px solid;
             background: transparent;
         }
-        .upload-copy { border-color: #667eea; color: #667eea; }
-        .upload-copy:hover { background: #667eea; color: white; }
-        .upload-delete { border-color: #ef4444; color: #ef4444; }
-        .upload-delete:hover { background: #ef4444; color: white; }
-        .no-uploads { color: #666; font-style: italic; padding: 10px 0; }
+        .upload-copy { border-color: #444; color: #888; }
+        .upload-copy:hover { background: #444; color: #ddd; }
+        .upload-delete { border-color: #444; color: #888; }
+        .upload-delete:hover { background: #444; color: #ddd; }
+        .no-uploads { color: #555; font-style: italic; padding: 10px 0; }
 
         /* Stats */
         .stats {
@@ -326,34 +309,32 @@
             flex-wrap: wrap;
         }
         .stat-card {
-            background: #252542;
+            background: #222;
             padding: 15px 20px;
-            border-radius: 10px;
             min-width: 120px;
         }
-        .stat-value { font-size: 1.5em; font-weight: 600; color: #fff; }
-        .stat-label { font-size: 0.85em; color: #888; margin-top: 4px; }
+        .stat-value { font-size: 1.5em; font-weight: 600; color: #ccc; }
+        .stat-label { font-size: 0.85em; color: #666; margin-top: 4px; }
 
-        .empty-state { text-align: center; padding: 40px 20px; color: #666; }
+        .empty-state { text-align: center; padding: 40px 20px; color: #555; }
         .section-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 15px;
         }
-        .version { position: fixed; bottom: 10px; right: 10px; color: #444; font-size: 0.75em; }
+        .version { position: fixed; bottom: 10px; right: 10px; color: #333; font-size: 0.75em; }
         .new-key-display {
             margin-top: 15px;
             padding: 15px;
-            background: #1a1a2e;
-            border-radius: 8px;
-            border: 1px solid #10b981;
+            background: #1a1a1a;
+            border: 1px solid #444;
         }
-        .new-key-display label { display: block; color: #10b981; margin-bottom: 8px; font-size: 0.9em; }
+        .new-key-display label { display: block; color: #888; margin-bottom: 8px; font-size: 0.9em; }
         .new-key-value {
             font-family: monospace;
             font-size: 1.2em;
-            color: #fff;
+            color: #ccc;
             word-break: break-all;
         }
     </style>
@@ -403,7 +384,7 @@
                     <label>Quota</label>
                     <div style="display: flex; gap: 6px;">
                         <input type="number" id="keyQuota" value="10" min="1" step="1" style="width: 80px;">
-                        <select id="keyQuotaUnit" style="padding: 10px; background: #1a1a2e; border: 1px solid #444; border-radius: 8px; color: #fff;">
+                        <select id="keyQuotaUnit" style="padding: 10px; background: #1a1a1a; border: 1px solid #333; color: #ccc;">
                             <option value="MiB">MiB</option>
                             <option value="GiB" selected>GiB</option>
                             <option value="TiB">TiB</option>
@@ -438,7 +419,7 @@
         </div>
     </div>
 
-    <div class="version">v3.7.2</div>
+    <div class="version">v3.8.0</div>
 
     <script>
         let keys = [];
