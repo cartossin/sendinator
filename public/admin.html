@@ -252,6 +252,67 @@
         .keys-header .sortable.active { color: #f99; }
         .keys-header .sort-icon { margin-left: 4px; font-size: 0.8em; }
         .version { position: fixed; bottom: 10px; right: 10px; color: #533; font-size: 0.75em; }
+
+        /* Edit quota modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: #1a1a1a;
+            padding: 30px;
+            max-width: 400px;
+            width: 90%;
+            border: 2px solid #900;
+        }
+        .modal h3 { margin: 0 0 8px 0; color: #e55; }
+        .modal-subtitle { color: #888; margin-bottom: 25px; font-size: 0.9em; }
+        .modal-field { margin-bottom: 20px; }
+        .modal-field label { display: block; color: #a66; margin-bottom: 8px; font-size: 0.85em; }
+        .modal-field-row { display: flex; gap: 10px; }
+        .modal-field input[type="number"] {
+            flex: 1;
+            padding: 12px 14px;
+            background: #111;
+            border: 1px solid #333;
+            color: #ccc;
+            font-size: 1.1em;
+            -moz-appearance: textfield;
+        }
+        .modal-field input[type="number"]::-webkit-outer-spin-button,
+        .modal-field input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .modal-field input[type="number"]:focus { outline: none; border-color: #a00; }
+        .modal-field select {
+            padding: 12px 14px;
+            background: #111;
+            border: 1px solid #333;
+            color: #ccc;
+            font-size: 1.1em;
+            cursor: pointer;
+        }
+        .modal-field select:focus { outline: none; border-color: #a00; }
+        .modal-buttons { display: flex; gap: 10px; margin-top: 25px; }
+        .modal-btn {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .modal-btn-primary { background: #b00; color: #fff; }
+        .modal-btn-primary:hover { background: #d00; }
+        .modal-btn-secondary { background: #333; color: #888; }
+        .modal-btn-secondary:hover { background: #444; color: #ccc; }
         .new-key-display {
             margin-top: 15px;
             padding: 15px;
@@ -357,7 +418,7 @@
         </div>
     </div>
 
-    <div class="version">v3.11.3</div>
+    <div class="version">v3.12.0</div>
 
     <script>
         let keys = [];
@@ -858,28 +919,51 @@
             });
         }
 
-        async function editKeyQuota(key) {
+        let editingKey = null;
+
+        function editKeyQuota(key) {
             const keyData = keys.find(k => k.key === key);
             if (!keyData) return;
 
-            const currentQuota = formatBytes(keyData.quotaBytes);
-            const input = prompt(`Enter new quota for "${keyData.label || key}":\n\nCurrent: ${currentQuota}\n\nExamples: 5 GiB, 500 MiB, 1 TiB`, currentQuota);
+            editingKey = key;
 
-            if (!input) return;
+            // Parse current quota to populate the form
+            const quota = getQuotaDisplay(keyData.quotaBytes);
 
-            // Parse the input
-            const match = input.trim().match(/^([\d.]+)\s*(MiB|GiB|TiB|MB|GB|TB)?$/i);
-            if (!match) {
-                alert('Invalid format. Use format like: 10 GiB, 500 MiB, 1 TiB');
-                return;
+            document.getElementById('editQuotaLabel').textContent = keyData.label || key;
+            document.getElementById('editQuotaValue').value = quota.value;
+            document.getElementById('editQuotaUnit').value = quota.unit;
+            document.getElementById('editQuotaModal').classList.add('active');
+            document.getElementById('editQuotaValue').focus();
+        }
+
+        function closeEditModal() {
+            document.getElementById('editQuotaModal').classList.remove('active');
+            editingKey = null;
+        }
+
+        // Convert bytes to a nice value/unit pair for editing
+        function getQuotaDisplay(bytes) {
+            const TiB = 1024 * 1024 * 1024 * 1024;
+            const GiB = 1024 * 1024 * 1024;
+            const MiB = 1024 * 1024;
+
+            if (bytes >= TiB && bytes % TiB === 0) {
+                return { value: bytes / TiB, unit: 'TiB' };
+            } else if (bytes >= GiB && bytes % GiB === 0) {
+                return { value: bytes / GiB, unit: 'GiB' };
+            } else if (bytes >= GiB) {
+                return { value: Math.round(bytes / GiB * 100) / 100, unit: 'GiB' };
+            } else {
+                return { value: Math.round(bytes / MiB * 100) / 100, unit: 'MiB' };
             }
+        }
 
-            const value = parseFloat(match[1]);
-            let unit = (match[2] || 'GiB').toUpperCase();
-            // Normalize units
-            if (unit === 'MB') unit = 'MiB';
-            if (unit === 'GB') unit = 'GiB';
-            if (unit === 'TB') unit = 'TiB';
+        async function saveEditQuota() {
+            if (!editingKey) return;
+
+            const value = parseFloat(document.getElementById('editQuotaValue').value);
+            const unit = document.getElementById('editQuotaUnit').value;
 
             if (isNaN(value) || value <= 0) {
                 alert('Please enter a valid positive number');
@@ -887,7 +971,7 @@
             }
 
             try {
-                const res = await fetch(`/api/admin/keys/${key}`, {
+                const res = await fetch(`/api/admin/keys/${editingKey}`, {
                     method: 'PATCH',
                     headers: {
                         'Content-Type': 'application/json',
@@ -897,6 +981,7 @@
                 });
 
                 if (res.ok) {
+                    closeEditModal();
                     loadKeys();
                 } else {
                     const data = await res.json();
@@ -1056,5 +1141,28 @@
         // Init
         checkAuth();
     </script>
+
+    <!-- Edit Quota Modal -->
+    <div class="modal-overlay" id="editQuotaModal" onclick="closeEditModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <h3>Edit Quota</h3>
+            <div class="modal-subtitle" id="editQuotaLabel"></div>
+            <div class="modal-field">
+                <label>New Quota</label>
+                <div class="modal-field-row">
+                    <input type="number" id="editQuotaValue" min="1" step="1" placeholder="10">
+                    <select id="editQuotaUnit">
+                        <option value="MiB">MiB</option>
+                        <option value="GiB" selected>GiB</option>
+                        <option value="TiB">TiB</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-secondary" onclick="closeEditModal()">Cancel</button>
+                <button class="modal-btn modal-btn-primary" onclick="saveEditQuota()">Save</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
