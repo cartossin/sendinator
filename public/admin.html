@@ -358,7 +358,7 @@
         </div>
     </div>
 
-    <div class="version">v3.11.1</div>
+    <div class="version">v3.11.2</div>
 
     <script>
         let keys = [];
@@ -619,7 +619,7 @@
                     case 'quota':
                         cmp = a.quotaBytes - b.quotaBytes;
                         break;
-                    case 'progress':
+                    case 'usage':
                         const aProgress = a.quotaBytes > 0 ? a.usedBytes / a.quotaBytes : 0;
                         const bProgress = b.quotaBytes > 0 ? b.usedBytes / b.quotaBytes : 0;
                         cmp = aProgress - bProgress;
@@ -661,8 +661,8 @@
                             <th class="right ${keysSortColumn === 'quota' ? 'active' : ''}" onclick="setKeysSort('quota')">
                                 Quota<span class="sort-icon">${sortIcon('quota')}</span>
                             </th>
-                            <th class="${keysSortColumn === 'progress' ? 'active' : ''}" onclick="setKeysSort('progress')">
-                                Progress<span class="sort-icon">${sortIcon('progress')}</span>
+                            <th class="${keysSortColumn === 'usage' ? 'active' : ''}" onclick="setKeysSort('usage')">
+                                Usage<span class="sort-icon">${sortIcon('usage')}</span>
                             </th>
                             <th class="right ${keysSortColumn === 'created' ? 'active' : ''}" onclick="setKeysSort('created')">
                                 Created<span class="sort-icon">${sortIcon('created')}</span>
