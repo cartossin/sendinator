@@ -3,9 +3,12 @@ import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const require = createRequire(import.meta.url);
+const pkg = require('./package.json');
 
 // === ADMIN CONFIGURATION ===
 const ADMIN_DIR = process.env.ADMIN_DIR || '/var/lib/sendinator';
@@ -717,6 +720,11 @@ const server = http.createServer(async (req, res) => {
             } catch (err) {
                 return sendJson(res, 500, { error: err.message });
             }
+        }
+
+        // GET /api/version
+        if (method === 'GET' && pathname === '/api/version') {
+            return sendJson(res, 200, { version: pkg.version });
         }
 
         // GET /api/info/:id

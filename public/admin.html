@@ -418,7 +418,7 @@
         </div>
     </div>
 
-    <div class="version">v3.12.1</div>
+    <div class="version" id="version"></div>
 
     <script>
         let keys = [];
@@ -1150,6 +1150,11 @@
 
         // Init
         checkAuth();
+
+        // Load version
+        fetch('/api/version').then(r => r.json()).then(d => {
+            document.getElementById('version').textContent = 'v' + d.version;
+        }).catch(() => {});
     </script>
 
     <!-- Edit Quota Modal -->

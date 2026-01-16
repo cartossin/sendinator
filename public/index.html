@@ -311,7 +311,7 @@
     </div>
 
     <a href="/admin" class="admin-link">Admin</a>
-    <div class="version">v3.7.2</div>
+    <div class="version" id="version"></div>
 
     <script src="zip.js"></script>
     <script>
@@ -688,6 +688,12 @@
         async function init() {
             await loadConfig();
             await checkSession();
+            // Load version
+            try {
+                const res = await fetch('/api/version');
+                const data = await res.json();
+                document.getElementById('version').textContent = 'v' + data.version;
+            } catch (e) {}
         }
         init();
 
