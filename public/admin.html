@@ -159,10 +159,13 @@
             letter-spacing: 0.5px;
             border-bottom: 1px solid #333;
             margin-bottom: 10px;
+            gap: 15px;
         }
-        .keys-header .col-label { flex: 1; }
-        .keys-header .col-quota { width: 180px; text-align: right; }
-        .keys-header .col-actions { width: 80px; text-align: right; }
+        .keys-header .col-label { flex: 1; min-width: 0; }
+        .keys-header .col-quota { width: 100px; text-align: right; }
+        .keys-header .col-files { width: 60px; text-align: right; }
+        .keys-header .col-created { width: 100px; text-align: right; }
+        .keys-header .col-actions { width: 140px; text-align: right; }
         .key-meta { font-size: 0.85em; color: #666; margin-top: 4px; }
         .key-quota {
             display: flex;
@@ -754,15 +757,14 @@
                     <div class="key-card ${isExpanded ? 'expanded' : ''}" data-key="${k.key}">
                         <div class="key-header" onclick="toggleKey('${k.key}')">
                             <div class="key-toggle">&#9654;</div>
-                            <div class="key-info">
+                            <div class="key-info" style="flex: 1; min-width: 0;">
                                 <div class="key-label">
                                     ${escapeHtml(k.label) || '(No label)'}
                                     <span class="key-string" onclick="event.stopPropagation(); copyKey('${k.key}', this)" data-tooltip="Click to copy">${revealedKeys.has(k.key) ? k.key : '••••••••••••••••••••'}</span>
                                     <button class="eye-btn-inline" onclick="event.stopPropagation(); toggleReveal('${k.key}')" title="${revealedKeys.has(k.key) ? 'Hide' : 'Show'} key">${revealedKeys.has(k.key) ? '👁' : '👁‍🗨'}</button>
                                 </div>
-                                <div class="key-meta">${k.uploads.length} file${k.uploads.length !== 1 ? 's' : ''} &bull; Created ${formatDate(k.createdAt)}</div>
                             </div>
-                            <div class="key-quota" onclick="event.stopPropagation()">
+                            <div class="key-col" style="width: 100px; text-align: right;" onclick="event.stopPropagation()">
                                 ${editingQuotaKey === k.key ? `
                                     <div class="quota-edit-form">
                                         <input type="number" id="editQuotaValue-${k.key}" value="${getQuotaDisplay(k.quotaBytes).value}" min="1" step="1">
@@ -775,13 +777,19 @@
                                         <button class="quota-cancel-btn" onclick="cancelEditQuota()">Cancel</button>
                                     </div>
                                 ` : `
-                                    <div class="quota-bar">
+                                    <div class="quota-text" style="font-size: 0.85em; color: #888;">${Math.round(usedPercent)}%</div>
+                                    <div class="quota-bar" style="width: 60px; margin-left: auto;">
                                         <div class="quota-fill ${quotaClass}" style="width: ${Math.min(usedPercent, 100)}%"></div>
                                     </div>
-                                    <div class="quota-text">${formatBytes(k.usedBytes)} / ${formatBytes(k.quotaBytes)} <button class="edit-quota-btn" style="padding: 2px 6px; font-size: 0.75em; margin-left: 6px;" onclick="editQuota('${k.key}')">Edit</button></div>
                                 `}
                             </div>
-                            <div class="key-actions" onclick="event.stopPropagation()">
+                            <div class="key-col" style="width: 60px; text-align: right; color: #888; font-size: 0.9em;">
+                                ${k.uploads.length}
+                            </div>
+                            <div class="key-col" style="width: 100px; text-align: right; color: #666; font-size: 0.85em;">
+                                ${formatDateShort(k.createdAt)}
+                            </div>
+                            <div class="key-actions" style="width: 140px;" onclick="event.stopPropagation()">
                                 <a class="upload-link-btn" href="/#${k.key}">Upload</a>
                                 <button class="delete-key-btn" onclick="deleteKey('${k.key}')">Delete</button>
                             </div>
@@ -1070,6 +1078,18 @@
             if (!timestamp) return 'Unknown';
             const d = new Date(timestamp);
             return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function formatDateShort(timestamp) {
+            if (!timestamp) return '--';
+            const d = new Date(timestamp);
+            const now = new Date();
+            const diff = now - d;
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            if (days === 0) return 'Today';
+            if (days === 1) return 'Yesterday';
+            if (days < 7) return days + 'd ago';
+            return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
         }
 
         function escapeHtml(str) {
