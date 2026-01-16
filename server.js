@@ -449,8 +449,27 @@ const server = http.createServer(async (req, res) => {
             const body = await readJsonBody(req);
             const { filename, size, totalChunks, type, fileCount, rootName } = body;
 
-            if (!filename || !size || !totalChunks) {
-                return sendJson(res, 400, { error: 'Missing required fields' });
+            // Validate required fields exist and have correct types
+            if (!filename || typeof filename !== 'string') {
+                return sendJson(res, 400, { error: 'Invalid filename' });
+            }
+            if (filename.length > 255) {
+                return sendJson(res, 400, { error: 'Filename too long' });
+            }
+            if (typeof size !== 'number' || !Number.isInteger(size) || size <= 0) {
+                return sendJson(res, 400, { error: 'Invalid size' });
+            }
+            if (typeof totalChunks !== 'number' || !Number.isInteger(totalChunks) || totalChunks <= 0) {
+                return sendJson(res, 400, { error: 'Invalid totalChunks' });
+            }
+            if (type !== undefined && type !== 'archive') {
+                return sendJson(res, 400, { error: 'Invalid type' });
+            }
+            if (fileCount !== undefined && (typeof fileCount !== 'number' || !Number.isInteger(fileCount) || fileCount < 0)) {
+                return sendJson(res, 400, { error: 'Invalid fileCount' });
+            }
+            if (rootName !== undefined && typeof rootName !== 'string') {
+                return sendJson(res, 400, { error: 'Invalid rootName' });
             }
 
             // Check quota (upload + download counts, so multiply by 2 for conservative estimate)
@@ -541,6 +560,25 @@ const server = http.createServer(async (req, res) => {
                     const data = Buffer.concat(chunks);
                     const computedHash = hash.digest('hex');
 
+                    // Validate chunk size - reject oversized chunks (potential attack)
+                    if (data.length > CHUNK_SIZE) {
+                        console.warn(`Rejected oversized chunk ${chunkIndex} for ${id}: ${data.length} > ${CHUNK_SIZE}`);
+                        return sendJson(res, 400, { error: 'Chunk too large' });
+                    }
+
+                    // For non-archives, validate exact chunk sizes
+                    if (fileInfo.type !== 'archive') {
+                        const isLastChunk = chunkIndex === fileInfo.totalChunks - 1;
+                        const expectedSize = isLastChunk
+                            ? (fileInfo.size % CHUNK_SIZE) || CHUNK_SIZE
+                            : CHUNK_SIZE;
+
+                        if (data.length !== expectedSize) {
+                            console.warn(`Rejected wrong-sized chunk ${chunkIndex} for ${id}: got ${data.length}, expected ${expectedSize}`);
+                            return sendJson(res, 400, { error: 'Invalid chunk size' });
+                        }
+                    }
+
                     if (expectedHash && computedHash !== expectedHash) {
                         return sendJson(res, 400, {
                             error: 'Hash mismatch',
@@ -606,7 +644,12 @@ const server = http.createServer(async (req, res) => {
                 const body = await readJsonBody(req);
                 const { actualChunks } = body;
 
-                if (actualChunks) {
+                // Validate actualChunks if provided
+                if (actualChunks !== undefined) {
+                    if (typeof actualChunks !== 'number' || !Number.isInteger(actualChunks) || actualChunks <= 0) {
+                        return sendJson(res, 400, { error: 'Invalid actualChunks' });
+                    }
+
                     // Update total chunks to actual count
                     const oldTotal = fileInfo.totalChunks;
                     fileInfo.totalChunks = actualChunks;
@@ -1173,8 +1216,19 @@ const server = http.createServer(async (req, res) => {
                 const body = await readJsonBody(req);
                 const { quotaValue, quotaUnit, label } = body;
 
-                if (!quotaValue || quotaValue <= 0) {
-                    return sendJson(res, 400, { error: 'Invalid quota' });
+                // Validate inputs
+                if (typeof quotaValue !== 'number' || !isFinite(quotaValue) || quotaValue <= 0) {
+                    return sendJson(res, 400, { error: 'Invalid quota value' });
+                }
+                const validUnits = ['MiB', 'GiB', 'TiB'];
+                if (quotaUnit !== undefined && !validUnits.includes(quotaUnit)) {
+                    return sendJson(res, 400, { error: 'Invalid quota unit' });
+                }
+                if (label !== undefined && typeof label !== 'string') {
+                    return sendJson(res, 400, { error: 'Invalid label' });
+                }
+                if (label && label.length > 100) {
+                    return sendJson(res, 400, { error: 'Label too long' });
                 }
 
                 // Convert to bytes based on unit (binary units)
@@ -1279,8 +1333,13 @@ const server = http.createServer(async (req, res) => {
                 const body = await readJsonBody(req);
                 const { quotaValue, quotaUnit } = body;
 
-                if (!quotaValue || quotaValue <= 0) {
-                    return sendJson(res, 400, { error: 'Invalid quota' });
+                // Validate inputs
+                if (typeof quotaValue !== 'number' || !isFinite(quotaValue) || quotaValue <= 0) {
+                    return sendJson(res, 400, { error: 'Invalid quota value' });
+                }
+                const validUnits = ['MiB', 'GiB', 'TiB'];
+                if (quotaUnit !== undefined && !validUnits.includes(quotaUnit)) {
+                    return sendJson(res, 400, { error: 'Invalid quota unit' });
                 }
 
                 // Convert to bytes based on unit (binary units)
@@ -1347,6 +1406,11 @@ const server = http.createServer(async (req, res) => {
             try {
                 const body = await readJsonBody(req);
                 const { key } = body;
+
+                // Validate key is a non-empty string
+                if (!key || typeof key !== 'string') {
+                    return sendJson(res, 400, { error: 'Invalid key format' });
+                }
 
                 const keyData = uploadKeys.get(key);
                 if (!keyData) {
