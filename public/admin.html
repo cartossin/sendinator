@@ -98,43 +98,33 @@
         }
         .create-btn:hover { background: #555; }
 
-        /* Manage Keys section */
-        .keys-management {
-            background: #222;
-            padding: 15px 20px;
-            margin-bottom: 20px;
+        /* Keys table */
+        .keys-table {
+            width: 100%;
+            border-collapse: collapse;
         }
-        .keys-management h2 { margin: 0 0 15px 0; }
-        .keys-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 10px;
-        }
-        .key-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
+        .keys-table th {
+            text-align: left;
             padding: 10px 12px;
-            background: #1a1a1a;
+            font-size: 0.8em;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #333;
+            cursor: pointer;
+            user-select: none;
         }
-        .key-item-info { flex: 1; min-width: 0; }
-        .key-item-label { font-weight: 600; color: #ccc; }
-        .key-item-meta { font-size: 0.8em; color: #666; margin-top: 2px; }
-        .key-item-quota {
-            display: flex;
-            align-items: center;
-            gap: 8px;
+        .keys-table th:hover { color: #888; }
+        .keys-table th.active { color: #ccc; }
+        .keys-table th.right { text-align: right; }
+        .keys-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #2a2a2a;
+            vertical-align: middle;
         }
-        .quota-bar-small {
-            width: 50px;
-            height: 4px;
-            background: #333;
-        }
-        .quota-bar-small .quota-fill { height: 100%; background: #555; }
-        .quota-bar-small .quota-fill.warning { background: #666; }
-        .quota-bar-small .quota-fill.danger { background: #777; }
-        .key-item-actions { display: flex; gap: 6px; }
-        .key-item-actions button, .key-item-actions a {
+        .keys-table tr:hover { background: rgba(255,255,255,0.02); }
+        .key-actions-cell { white-space: nowrap; }
+        .key-actions-cell button, .key-actions-cell a {
             padding: 4px 8px;
             font-size: 0.75em;
             cursor: pointer;
@@ -142,8 +132,20 @@
             background: transparent;
             color: #888;
             text-decoration: none;
+            margin-left: 4px;
         }
-        .key-item-actions button:hover, .key-item-actions a:hover { background: #444; color: #ddd; }
+        .key-actions-cell button:hover, .key-actions-cell a:hover { background: #444; color: #ddd; }
+        .quota-bar-small {
+            width: 60px;
+            height: 4px;
+            background: #333;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        .quota-bar-small .quota-fill { height: 100%; background: #555; }
+        .quota-bar-small .quota-fill.warning { background: #666; }
+        .quota-bar-small .quota-fill.danger { background: #777; }
 
         /* Files table */
         .files-table {
@@ -171,22 +173,6 @@
         }
         .files-table tr:hover { background: rgba(255,255,255,0.02); }
         .sort-icon { margin-left: 4px; font-size: 0.8em; }
-
-        .file-key-cell {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .file-key-label { color: #888; }
-        .file-key-upload {
-            padding: 2px 6px;
-            font-size: 0.75em;
-            border: 1px solid #444;
-            background: transparent;
-            color: #666;
-            text-decoration: none;
-        }
-        .file-key-upload:hover { background: #444; color: #ddd; }
 
         .file-name-cell {
             max-width: 300px;
@@ -339,12 +325,17 @@
             </div>
         </div>
 
-        <div class="keys-management">
+        <div class="section-header">
             <h2>Manage Keys</h2>
-            <div class="keys-grid" id="keysGrid"></div>
-            <div class="empty-state" id="keysEmpty" style="display: none; padding: 20px;">
-                No upload keys yet. Create one above to get started.
-            </div>
+        </div>
+
+        <div class="search-box">
+            <input type="text" class="search-input" id="keysSearchInput" placeholder="Search keys or labels..." oninput="handleKeysSearch()">
+        </div>
+
+        <div id="keysTableContainer"></div>
+        <div class="empty-state" id="keysEmpty" style="display: none;">
+            No upload keys yet. Create one above to get started.
         </div>
 
         <div class="section-header">
@@ -352,7 +343,7 @@
         </div>
 
         <div class="search-box">
-            <input type="text" class="search-input" id="searchInput" placeholder="Search keys, labels, or filenames..." oninput="handleSearch()">
+            <input type="text" class="search-input" id="filesSearchInput" placeholder="Search keys, labels, or filenames..." oninput="handleFilesSearch()">
         </div>
 
         <div id="filesTableContainer"></div>
@@ -361,15 +352,22 @@
         </div>
     </div>
 
-    <div class="version">v3.10.0</div>
+    <div class="version">v3.10.1</div>
 
     <script>
         let keys = [];
         let orphanedUploads = [];
         let sessionToken = null;
-        let searchQuery = '';
-        let sortColumn = 'filename';
-        let sortDirection = 'asc';
+
+        // Keys table state
+        let keysSearchQuery = '';
+        let keysSortColumn = 'label';
+        let keysSortDirection = 'asc';
+
+        // Files table state
+        let filesSearchQuery = '';
+        let filesSortColumn = 'filename';
+        let filesSortDirection = 'asc';
 
         const authContainer = document.getElementById('authContainer');
         const adminPanel = document.getElementById('adminPanel');
@@ -377,7 +375,7 @@
         const authDesc = document.getElementById('authDesc');
         const authBtn = document.getElementById('authBtn');
         const authError = document.getElementById('authError');
-        const keysGrid = document.getElementById('keysGrid');
+        const keysTableContainer = document.getElementById('keysTableContainer');
         const keysEmpty = document.getElementById('keysEmpty');
         const filesTableContainer = document.getElementById('filesTableContainer');
         const filesEmpty = document.getElementById('filesEmpty');
@@ -534,7 +532,7 @@
                 keys = data.keys;
                 orphanedUploads = data.orphanedUploads || [];
                 updateStats();
-                renderKeysGrid();
+                renderKeysTable();
                 renderFilesTable();
             } catch (err) {
                 console.error('Failed to load keys:', err);
@@ -573,17 +571,139 @@
             document.getElementById('totalSize').textContent = formatBytes(totalSize);
         }
 
-        function handleSearch() {
-            searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+        // Keys table functions
+        function handleKeysSearch() {
+            keysSearchQuery = document.getElementById('keysSearchInput').value.toLowerCase().trim();
+            renderKeysTable();
+        }
+
+        function setKeysSort(column) {
+            if (keysSortColumn === column) {
+                keysSortDirection = keysSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                keysSortColumn = column;
+                keysSortDirection = column === 'label' ? 'asc' : 'desc';
+            }
+            renderKeysTable();
+        }
+
+        function getFilteredAndSortedKeys() {
+            let filtered = keys;
+
+            if (keysSearchQuery) {
+                filtered = keys.filter(k => {
+                    const labelMatch = (k.label || '').toLowerCase().includes(keysSearchQuery);
+                    const keyMatch = k.key.toLowerCase().includes(keysSearchQuery);
+                    return labelMatch || keyMatch;
+                });
+            }
+
+            const sorted = [...filtered].sort((a, b) => {
+                let cmp = 0;
+                switch (keysSortColumn) {
+                    case 'label':
+                        cmp = (a.label || '').localeCompare(b.label || '');
+                        break;
+                    case 'files':
+                        cmp = a.uploads.length - b.uploads.length;
+                        break;
+                    case 'used':
+                        cmp = a.usedBytes - b.usedBytes;
+                        break;
+                    case 'quota':
+                        cmp = a.quotaBytes - b.quotaBytes;
+                        break;
+                    case 'created':
+                        cmp = (a.createdAt || 0) - (b.createdAt || 0);
+                        break;
+                }
+                return keysSortDirection === 'asc' ? cmp : -cmp;
+            });
+
+            return sorted;
+        }
+
+        function renderKeysTable() {
+            if (keys.length === 0) {
+                keysTableContainer.innerHTML = '';
+                keysEmpty.style.display = 'block';
+                return;
+            }
+            keysEmpty.style.display = 'none';
+
+            const filteredKeys = getFilteredAndSortedKeys();
+            const sortIcon = (col) => keysSortColumn === col ? (keysSortDirection === 'asc' ? '▲' : '▼') : '';
+
+            let html = `
+                <table class="keys-table">
+                    <thead>
+                        <tr>
+                            <th class="${keysSortColumn === 'label' ? 'active' : ''}" onclick="setKeysSort('label')">
+                                Label<span class="sort-icon">${sortIcon('label')}</span>
+                            </th>
+                            <th class="right ${keysSortColumn === 'files' ? 'active' : ''}" onclick="setKeysSort('files')">
+                                Files<span class="sort-icon">${sortIcon('files')}</span>
+                            </th>
+                            <th class="right ${keysSortColumn === 'used' ? 'active' : ''}" onclick="setKeysSort('used')">
+                                Used<span class="sort-icon">${sortIcon('used')}</span>
+                            </th>
+                            <th class="right ${keysSortColumn === 'quota' ? 'active' : ''}" onclick="setKeysSort('quota')">
+                                Quota<span class="sort-icon">${sortIcon('quota')}</span>
+                            </th>
+                            <th class="right ${keysSortColumn === 'created' ? 'active' : ''}" onclick="setKeysSort('created')">
+                                Created<span class="sort-icon">${sortIcon('created')}</span>
+                            </th>
+                            <th class="right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            if (filteredKeys.length === 0 && keysSearchQuery) {
+                html += `<tr><td colspan="6" style="text-align: center; color: #555; padding: 20px;">No keys match your search.</td></tr>`;
+            } else {
+                for (const k of filteredKeys) {
+                    const usedPercent = k.quotaBytes > 0 ? (k.usedBytes / k.quotaBytes * 100) : 0;
+                    const quotaClass = usedPercent >= 100 ? 'danger' : usedPercent > 90 ? 'warning' : '';
+
+                    html += `
+                        <tr>
+                            <td style="color: #ccc;">${escapeHtml(k.label) || '(No label)'}</td>
+                            <td style="text-align: right; color: #888;">${k.uploads.length}</td>
+                            <td style="text-align: right; color: #888;">${formatBytes(k.usedBytes)}</td>
+                            <td style="text-align: right;">
+                                <div class="quota-bar-small">
+                                    <div class="quota-fill ${quotaClass}" style="width: ${Math.min(usedPercent, 100)}%"></div>
+                                </div>
+                                <span style="color: #666;">${formatBytes(k.quotaBytes)}</span>
+                            </td>
+                            <td style="text-align: right; color: #666;">${formatDateShort(k.createdAt)}</td>
+                            <td class="key-actions-cell" style="text-align: right;">
+                                <a href="/#${k.key}">Upload</a>
+                                <button onclick="copyKeyToClipboard('${k.key}')">Copy</button>
+                                <button onclick="deleteKey('${k.key}')">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                }
+            }
+
+            html += '</tbody></table>';
+            keysTableContainer.innerHTML = html;
+        }
+
+        // Files table functions
+        function handleFilesSearch() {
+            filesSearchQuery = document.getElementById('filesSearchInput').value.toLowerCase().trim();
             renderFilesTable();
         }
 
-        function setSort(column) {
-            if (sortColumn === column) {
-                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+        function setFilesSort(column) {
+            if (filesSortColumn === column) {
+                filesSortDirection = filesSortDirection === 'asc' ? 'desc' : 'asc';
             } else {
-                sortColumn = column;
-                sortDirection = column === 'filename' ? 'asc' : 'desc';
+                filesSortColumn = column;
+                filesSortDirection = column === 'filename' ? 'asc' : 'desc';
             }
             renderFilesTable();
         }
@@ -615,11 +735,11 @@
             let files = getAllFiles();
 
             // Filter
-            if (searchQuery) {
+            if (filesSearchQuery) {
                 files = files.filter(f => {
-                    const labelMatch = f.keyLabel.toLowerCase().includes(searchQuery);
-                    const keyMatch = f.keyId ? f.keyId.toLowerCase().includes(searchQuery) : false;
-                    const filenameMatch = f.filename.toLowerCase().includes(searchQuery);
+                    const labelMatch = f.keyLabel.toLowerCase().includes(filesSearchQuery);
+                    const keyMatch = f.keyId ? f.keyId.toLowerCase().includes(filesSearchQuery) : false;
+                    const filenameMatch = f.filename.toLowerCase().includes(filesSearchQuery);
                     return labelMatch || keyMatch || filenameMatch;
                 });
             }
@@ -627,7 +747,7 @@
             // Sort
             files.sort((a, b) => {
                 let cmp = 0;
-                switch (sortColumn) {
+                switch (filesSortColumn) {
                     case 'key':
                         cmp = a.keyLabel.localeCompare(b.keyLabel);
                         break;
@@ -646,44 +766,10 @@
                         cmp = (a.createdAt || 0) - (b.createdAt || 0);
                         break;
                 }
-                return sortDirection === 'asc' ? cmp : -cmp;
+                return filesSortDirection === 'asc' ? cmp : -cmp;
             });
 
             return files;
-        }
-
-        function renderKeysGrid() {
-            if (keys.length === 0) {
-                keysGrid.innerHTML = '';
-                keysEmpty.style.display = 'block';
-                return;
-            }
-            keysEmpty.style.display = 'none';
-
-            keysGrid.innerHTML = keys.map(k => {
-                const usedPercent = k.quotaBytes > 0 ? (k.usedBytes / k.quotaBytes * 100) : 0;
-                const quotaClass = usedPercent >= 100 ? 'danger' : usedPercent > 90 ? 'warning' : '';
-
-                return `
-                    <div class="key-item" data-key="${k.key}">
-                        <div class="key-item-info">
-                            <div class="key-item-label">${escapeHtml(k.label) || '(No label)'}</div>
-                            <div class="key-item-meta">${k.uploads.length} file${k.uploads.length !== 1 ? 's' : ''} · ${formatBytes(k.usedBytes)} / ${formatBytes(k.quotaBytes)}</div>
-                        </div>
-                        <div class="key-item-quota">
-                            <div class="quota-bar-small">
-                                <div class="quota-fill ${quotaClass}" style="width: ${Math.min(usedPercent, 100)}%"></div>
-                            </div>
-                            <span style="font-size: 0.75em; color: #666;">${Math.round(usedPercent)}%</span>
-                        </div>
-                        <div class="key-item-actions">
-                            <a href="/#${k.key}" title="Upload to this key">Upload</a>
-                            <button onclick="copyKeyToClipboard('${k.key}')" title="Copy key">Copy</button>
-                            <button onclick="deleteKey('${k.key}')" title="Delete key">Delete</button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
         }
 
         function renderFilesTable() {
@@ -696,25 +782,25 @@
             }
             filesEmpty.style.display = 'none';
 
-            const sortIcon = (col) => sortColumn === col ? (sortDirection === 'asc' ? '▲' : '▼') : '';
+            const sortIcon = (col) => filesSortColumn === col ? (filesSortDirection === 'asc' ? '▲' : '▼') : '';
 
             let html = `
                 <table class="files-table">
                     <thead>
                         <tr>
-                            <th class="${sortColumn === 'key' ? 'active' : ''}" onclick="setSort('key')">
+                            <th class="${filesSortColumn === 'key' ? 'active' : ''}" onclick="setFilesSort('key')">
                                 Key<span class="sort-icon">${sortIcon('key')}</span>
                             </th>
-                            <th class="${sortColumn === 'filename' ? 'active' : ''}" onclick="setSort('filename')">
+                            <th class="${filesSortColumn === 'filename' ? 'active' : ''}" onclick="setFilesSort('filename')">
                                 Filename<span class="sort-icon">${sortIcon('filename')}</span>
                             </th>
-                            <th class="right ${sortColumn === 'size' ? 'active' : ''}" onclick="setSort('size')">
+                            <th class="right ${filesSortColumn === 'size' ? 'active' : ''}" onclick="setFilesSort('size')">
                                 Size<span class="sort-icon">${sortIcon('size')}</span>
                             </th>
-                            <th class="${sortColumn === 'complete' ? 'active' : ''}" onclick="setSort('complete')">
+                            <th class="${filesSortColumn === 'complete' ? 'active' : ''}" onclick="setFilesSort('complete')">
                                 Complete<span class="sort-icon">${sortIcon('complete')}</span>
                             </th>
-                            <th class="right ${sortColumn === 'created' ? 'active' : ''}" onclick="setSort('created')">
+                            <th class="right ${filesSortColumn === 'created' ? 'active' : ''}" onclick="setFilesSort('created')">
                                 Created<span class="sort-icon">${sortIcon('created')}</span>
                             </th>
                             <th class="right">Actions</th>
@@ -723,7 +809,7 @@
                     <tbody>
             `;
 
-            if (files.length === 0 && searchQuery) {
+            if (files.length === 0 && filesSearchQuery) {
                 html += `<tr><td colspan="6" style="text-align: center; color: #555; padding: 20px;">No files match your search.</td></tr>`;
             } else {
                 for (const f of files) {
@@ -731,12 +817,7 @@
 
                     html += `
                         <tr>
-                            <td>
-                                <div class="file-key-cell">
-                                    <span class="file-key-label">${escapeHtml(f.keyLabel)}</span>
-                                    ${f.keyId ? `<a class="file-key-upload" href="/#${f.keyId}" title="Upload to this key">+</a>` : ''}
-                                </div>
-                            </td>
+                            <td style="color: #888;">${escapeHtml(f.keyLabel)}</td>
                             <td class="file-name-cell">
                                 <a class="file-name-link" href="/download/${f.id}" title="${escapeHtml(f.filename)}">${escapeHtml(f.filename)}</a>
                             </td>
