@@ -185,11 +185,21 @@ function sendJson(res, statusCode, data) {
     res.end(JSON.stringify(data));
 }
 
-// Helper: Read JSON body from request
+// Helper: Read JSON body from request (with size limit to prevent memory exhaustion)
+const MAX_JSON_BODY_SIZE = 1024 * 1024; // 1MB limit for JSON bodies
 function readJsonBody(req) {
     return new Promise((resolve, reject) => {
         let body = '';
-        req.on('data', chunk => body += chunk);
+        let size = 0;
+        req.on('data', chunk => {
+            size += chunk.length;
+            if (size > MAX_JSON_BODY_SIZE) {
+                req.destroy();
+                reject(new Error('Request body too large'));
+                return;
+            }
+            body += chunk;
+        });
         req.on('end', () => {
             try {
                 resolve(JSON.parse(body));
@@ -549,22 +559,28 @@ const server = http.createServer(async (req, res) => {
 
             const chunks = [];
             const hash = crypto.createHash('sha256');
+            let totalSize = 0;
+            let aborted = false;
 
             req.on('data', (chunk) => {
+                if (aborted) return;
+                totalSize += chunk.length;
+                // Early abort if chunk is oversized (don't buffer the whole thing)
+                if (totalSize > CHUNK_SIZE) {
+                    aborted = true;
+                    console.warn(`Rejected oversized chunk ${chunkIndex} for ${id}: ${totalSize}+ > ${CHUNK_SIZE}`);
+                    req.destroy();
+                    return sendJson(res, 400, { error: 'Chunk too large' });
+                }
                 chunks.push(chunk);
                 hash.update(chunk);
             });
 
             req.on('end', () => {
+                if (aborted) return;
                 try {
                     const data = Buffer.concat(chunks);
                     const computedHash = hash.digest('hex');
-
-                    // Validate chunk size - reject oversized chunks (potential attack)
-                    if (data.length > CHUNK_SIZE) {
-                        console.warn(`Rejected oversized chunk ${chunkIndex} for ${id}: ${data.length} > ${CHUNK_SIZE}`);
-                        return sendJson(res, 400, { error: 'Chunk too large' });
-                    }
 
                     // For non-archives, validate exact chunk sizes
                     if (fileInfo.type !== 'archive') {
