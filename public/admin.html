@@ -98,211 +98,121 @@
         }
         .create-btn:hover { background: #555; }
 
-        /* Key card */
-        .key-card {
+        /* Manage Keys section */
+        .keys-management {
             background: #222;
-            margin-bottom: 12px;
-            overflow: hidden;
+            padding: 15px 20px;
+            margin-bottom: 20px;
         }
-        .key-header {
+        .keys-management h2 { margin: 0 0 15px 0; }
+        .keys-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 10px;
+        }
+        .key-item {
             display: flex;
             align-items: center;
-            padding: 16px 20px;
-            cursor: pointer;
-            gap: 15px;
+            gap: 10px;
+            padding: 10px 12px;
+            background: #1a1a1a;
         }
-        .key-header:hover { background: rgba(255, 255, 255, 0.03); }
-        .key-toggle {
-            font-size: 0.9em;
-            color: #666;
-            width: 20px;
-            transition: transform 0.2s;
+        .key-item-info { flex: 1; min-width: 0; }
+        .key-item-label { font-weight: 600; color: #ccc; }
+        .key-item-meta { font-size: 0.8em; color: #666; margin-top: 2px; }
+        .key-item-quota {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        .key-card.expanded .key-toggle { transform: rotate(90deg); }
-        .key-info { flex: 1; }
-        .key-label { font-weight: 600; font-size: 1.1em; color: #ccc; }
-        .key-label .key-string {
-            font-family: monospace;
-            font-size: 0.85em;
-            color: #666;
-            margin-left: 10px;
-            cursor: pointer;
-            padding: 2px 6px;
-            transition: background 0.2s;
-            position: relative;
-        }
-        .key-label .key-string:hover { background: rgba(255, 255, 255, 0.1); }
-        .key-label .key-string::after {
-            content: attr(data-tooltip);
-            position: absolute;
-            bottom: 100%;
-            left: 50%;
-            transform: translateX(-50%);
+        .quota-bar-small {
+            width: 50px;
+            height: 4px;
             background: #333;
-            color: #ccc;
+        }
+        .quota-bar-small .quota-fill { height: 100%; background: #555; }
+        .quota-bar-small .quota-fill.warning { background: #666; }
+        .quota-bar-small .quota-fill.danger { background: #777; }
+        .key-item-actions { display: flex; gap: 6px; }
+        .key-item-actions button, .key-item-actions a {
             padding: 4px 8px;
             font-size: 0.75em;
-            white-space: nowrap;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.15s;
-            margin-bottom: 4px;
+            cursor: pointer;
+            border: 1px solid #444;
+            background: transparent;
+            color: #888;
+            text-decoration: none;
         }
-        .key-label .key-string:hover::after { opacity: 1; }
-        .key-label .key-string.copied::after { content: 'Copied!'; background: #555; }
-        .keys-header {
-            display: flex;
-            padding: 10px 20px 10px 50px;
+        .key-item-actions button:hover, .key-item-actions a:hover { background: #444; color: #ddd; }
+
+        /* Files table */
+        .files-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .files-table th {
+            text-align: left;
+            padding: 10px 12px;
             font-size: 0.8em;
             color: #555;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             border-bottom: 1px solid #333;
-            margin-bottom: 10px;
-            gap: 15px;
-        }
-        .keys-header .col-label { flex: 1; min-width: 0; }
-        .keys-header .col-quota { width: 100px; text-align: right; }
-        .keys-header .col-files { width: 60px; text-align: right; }
-        .keys-header .col-created { width: 100px; text-align: right; }
-        .keys-header .col-actions { width: 140px; text-align: right; }
-        .key-meta { font-size: 0.85em; color: #666; margin-top: 4px; }
-        .key-quota {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 4px;
-        }
-        .quota-bar {
-            width: 150px;
-            height: 6px;
-            background: #1a1a1a;
-            overflow: hidden;
-        }
-        .quota-fill {
-            height: 100%;
-            background: #555;
-            transition: width 0.3s;
-        }
-        .quota-fill.warning { background: #666; }
-        .quota-fill.danger { background: #777; }
-        .quota-text { font-size: 0.8em; color: #666; }
-        .key-actions {
-            display: flex;
-            gap: 8px;
-        }
-        .copy-key-btn, .delete-key-btn, .upload-link-btn {
-            padding: 6px 12px;
-            font-size: 0.85em;
             cursor: pointer;
-            border: 1px solid;
-            text-decoration: none;
+            user-select: none;
         }
-        .upload-link-btn { background: transparent; border-color: #555; color: #888; }
-        .upload-link-btn:hover { background: #555; color: #ddd; }
-        .eye-btn-inline {
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            font-size: 0.9em;
-            padding: 2px 6px;
-            margin-left: 6px;
-            opacity: 0.6;
+        .files-table th:hover { color: #888; }
+        .files-table th.active { color: #ccc; }
+        .files-table th.right { text-align: right; }
+        .files-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #2a2a2a;
             vertical-align: middle;
         }
-        .eye-btn-inline:hover { opacity: 1; }
-        .copy-key-btn { background: transparent; border-color: #555; color: #888; }
-        .copy-key-btn:hover { background: #555; color: #ddd; }
-        .delete-key-btn { background: transparent; border-color: #555; color: #888; }
-        .delete-key-btn:hover { background: #555; color: #ddd; }
-        .edit-quota-btn { background: transparent; border-color: #444; color: #666; }
-        .edit-quota-btn:hover { background: #444; color: #ccc; }
-        .quota-edit-form {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-        }
-        .quota-edit-form input {
-            width: 60px;
-            padding: 4px 8px;
-            background: #1a1a1a;
-            border: 1px solid #333;
-            color: #ccc;
-            font-size: 0.85em;
-            -moz-appearance: textfield;
-        }
-        .quota-edit-form input::-webkit-outer-spin-button,
-        .quota-edit-form input::-webkit-inner-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-        .quota-edit-form select {
-            padding: 4px 6px;
-            background: #1a1a1a;
-            border: 1px solid #333;
-            color: #ccc;
-            font-size: 0.85em;
-        }
-        .quota-edit-form button {
-            padding: 4px 8px;
-            font-size: 0.8em;
-            cursor: pointer;
-            border: 1px solid;
-        }
-        .quota-save-btn { background: #444; border-color: #444; color: #ddd; }
-        .quota-cancel-btn { background: transparent; border-color: #444; color: #666; }
+        .files-table tr:hover { background: rgba(255,255,255,0.02); }
+        .sort-icon { margin-left: 4px; font-size: 0.8em; }
 
-        /* Key uploads */
-        .key-uploads {
-            display: none;
-            border-top: 1px solid #333;
-            padding: 15px 20px;
-            background: #1a1a1a;
-        }
-        .key-card.expanded .key-uploads { display: block; }
-        .upload-row {
+        .file-key-cell {
             display: flex;
             align-items: center;
-            padding: 10px 0;
-            border-bottom: 1px solid #333;
-            gap: 15px;
+            gap: 8px;
         }
-        .upload-row:last-child { border-bottom: none; }
-        .upload-filename {
-            flex: 1;
+        .file-key-label { color: #888; }
+        .file-key-upload {
+            padding: 2px 6px;
+            font-size: 0.75em;
+            border: 1px solid #444;
+            background: transparent;
+            color: #666;
+            text-decoration: none;
+        }
+        .file-key-upload:hover { background: #444; color: #ddd; }
+
+        .file-name-cell {
+            max-width: 300px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+        }
+        .file-name-link {
             color: #888;
             text-decoration: none;
         }
-        .upload-filename:hover {
-            color: #aaa;
-            text-decoration: underline;
-        }
-        .upload-size { color: #666; font-size: 0.9em; min-width: 80px; }
-        .upload-progress { min-width: 100px; }
-        .progress-bar {
-            height: 6px;
-            background: #1a1a1a;
-            overflow: hidden;
-        }
-        .progress-fill { height: 100%; background: #555; }
-        .progress-fill.complete { background: #666; }
-        .progress-text { font-size: 0.75em; color: #555; margin-top: 2px; }
-        .upload-actions { display: flex; gap: 8px; }
-        .upload-actions button {
-            padding: 4px 10px;
-            font-size: 0.8em;
+        .file-name-link:hover { color: #aaa; text-decoration: underline; }
+
+        .file-size-cell { color: #666; white-space: nowrap; }
+        .file-date-cell { color: #666; white-space: nowrap; }
+        .file-actions-cell { white-space: nowrap; }
+        .file-actions-cell button {
+            padding: 4px 8px;
+            font-size: 0.75em;
             cursor: pointer;
-            border: 1px solid;
+            border: 1px solid #444;
             background: transparent;
+            color: #888;
+            margin-left: 4px;
         }
-        .upload-copy { border-color: #444; color: #888; }
-        .upload-copy:hover { background: #444; color: #ddd; }
-        .upload-delete { border-color: #444; color: #888; }
-        .upload-delete:hover { background: #444; color: #ddd; }
-        .no-uploads { color: #555; font-style: italic; padding: 10px 0; }
+        .file-actions-cell button:hover { background: #444; color: #ddd; }
 
         /* Stats */
         .stats {
@@ -429,39 +339,37 @@
             </div>
         </div>
 
+        <div class="keys-management">
+            <h2>Manage Keys</h2>
+            <div class="keys-grid" id="keysGrid"></div>
+            <div class="empty-state" id="keysEmpty" style="display: none; padding: 20px;">
+                No upload keys yet. Create one above to get started.
+            </div>
+        </div>
+
         <div class="section-header">
-            <h2>Upload Keys</h2>
+            <h2>All Files</h2>
         </div>
 
         <div class="search-box">
             <input type="text" class="search-input" id="searchInput" placeholder="Search keys, labels, or filenames..." oninput="handleSearch()">
         </div>
 
-        <div id="keysList"></div>
-        <div class="empty-state" id="emptyState" style="display: none;">
-            No upload keys yet. Create one above to get started.
-        </div>
-
-        <div id="orphanedSection" style="display: none; margin-top: 30px;">
-            <div class="section-header">
-                <h2>Orphaned Files</h2>
-            </div>
-            <div id="orphanedList"></div>
+        <div id="filesTableContainer"></div>
+        <div class="empty-state" id="filesEmpty" style="display: none;">
+            No files uploaded yet.
         </div>
     </div>
 
-    <div class="version">v3.9.1</div>
+    <div class="version">v3.10.0</div>
 
     <script>
         let keys = [];
         let orphanedUploads = [];
         let sessionToken = null;
-        let expandedKeys = new Set();
-        let revealedKeys = new Set();
-        let editingQuotaKey = null;
         let searchQuery = '';
-        let sortColumn = 'created';
-        let sortDirection = 'desc';
+        let sortColumn = 'filename';
+        let sortDirection = 'asc';
 
         const authContainer = document.getElementById('authContainer');
         const adminPanel = document.getElementById('adminPanel');
@@ -469,8 +377,10 @@
         const authDesc = document.getElementById('authDesc');
         const authBtn = document.getElementById('authBtn');
         const authError = document.getElementById('authError');
-        const keysList = document.getElementById('keysList');
-        const emptyState = document.getElementById('emptyState');
+        const keysGrid = document.getElementById('keysGrid');
+        const keysEmpty = document.getElementById('keysEmpty');
+        const filesTableContainer = document.getElementById('filesTableContainer');
+        const filesEmpty = document.getElementById('filesEmpty');
 
         // Check auth status on load
         async function checkAuth() {
@@ -624,8 +534,8 @@
                 keys = data.keys;
                 orphanedUploads = data.orphanedUploads || [];
                 updateStats();
-                renderKeys();
-                renderOrphanedUploads();
+                renderKeysGrid();
+                renderFilesTable();
             } catch (err) {
                 console.error('Failed to load keys:', err);
             }
@@ -665,7 +575,7 @@
 
         function handleSearch() {
             searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
-            renderKeys();
+            renderFilesTable();
         }
 
         function setSort(column) {
@@ -673,291 +583,183 @@
                 sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
             } else {
                 sortColumn = column;
-                sortDirection = column === 'label' ? 'asc' : 'desc';
+                sortDirection = column === 'filename' ? 'asc' : 'desc';
             }
-            renderKeys();
+            renderFilesTable();
         }
 
-        function getFilteredAndSortedKeys() {
+        // Build flat list of all files with key info attached
+        function getAllFiles() {
+            const files = [];
+            for (const k of keys) {
+                for (const u of k.uploads) {
+                    files.push({
+                        ...u,
+                        keyId: k.key,
+                        keyLabel: k.label || '(No label)'
+                    });
+                }
+            }
+            // Add orphaned files
+            for (const u of orphanedUploads) {
+                files.push({
+                    ...u,
+                    keyId: null,
+                    keyLabel: '(Orphaned)'
+                });
+            }
+            return files;
+        }
+
+        function getFilteredAndSortedFiles() {
+            let files = getAllFiles();
+
             // Filter
-            let filtered = keys;
             if (searchQuery) {
-                filtered = keys.filter(k => {
-                    const labelMatch = (k.label || '').toLowerCase().includes(searchQuery);
-                    const keyMatch = k.key.toLowerCase().includes(searchQuery);
-                    const filenameMatch = k.uploads.some(u => u.filename.toLowerCase().includes(searchQuery));
+                files = files.filter(f => {
+                    const labelMatch = f.keyLabel.toLowerCase().includes(searchQuery);
+                    const keyMatch = f.keyId ? f.keyId.toLowerCase().includes(searchQuery) : false;
+                    const filenameMatch = f.filename.toLowerCase().includes(searchQuery);
                     return labelMatch || keyMatch || filenameMatch;
                 });
             }
 
             // Sort
-            const sorted = [...filtered].sort((a, b) => {
+            files.sort((a, b) => {
                 let cmp = 0;
                 switch (sortColumn) {
-                    case 'label':
-                        cmp = (a.label || '').localeCompare(b.label || '');
+                    case 'key':
+                        cmp = a.keyLabel.localeCompare(b.keyLabel);
+                        break;
+                    case 'filename':
+                        cmp = a.filename.localeCompare(b.filename);
+                        break;
+                    case 'size':
+                        cmp = a.size - b.size;
+                        break;
+                    case 'complete':
+                        const aComplete = a.totalChunks > 0 && a.chunksReceived === a.totalChunks ? 1 : 0;
+                        const bComplete = b.totalChunks > 0 && b.chunksReceived === b.totalChunks ? 1 : 0;
+                        cmp = aComplete - bComplete;
                         break;
                     case 'created':
                         cmp = (a.createdAt || 0) - (b.createdAt || 0);
-                        break;
-                    case 'quota':
-                        cmp = (a.usedBytes / a.quotaBytes) - (b.usedBytes / b.quotaBytes);
-                        break;
-                    case 'files':
-                        cmp = a.uploads.length - b.uploads.length;
                         break;
                 }
                 return sortDirection === 'asc' ? cmp : -cmp;
             });
 
-            return sorted;
+            return files;
         }
 
-        function renderKeys() {
-            const filteredKeys = getFilteredAndSortedKeys();
-
+        function renderKeysGrid() {
             if (keys.length === 0) {
-                keysList.innerHTML = '';
-                emptyState.style.display = 'block';
+                keysGrid.innerHTML = '';
+                keysEmpty.style.display = 'block';
                 return;
             }
-            emptyState.style.display = 'none';
+            keysEmpty.style.display = 'none';
 
-            const sortIcon = (col) => sortColumn === col ? (sortDirection === 'asc' ? '▲' : '▼') : '';
-
-            const header = `
-                <div class="keys-header">
-                    <div class="col-label sortable ${sortColumn === 'label' ? 'active' : ''}" onclick="setSort('label')">
-                        Label / Key<span class="sort-icon">${sortIcon('label')}</span>
-                    </div>
-                    <div class="col-quota sortable ${sortColumn === 'quota' ? 'active' : ''}" onclick="setSort('quota')" style="width: 100px; text-align: right;">
-                        Quota<span class="sort-icon">${sortIcon('quota')}</span>
-                    </div>
-                    <div class="sortable ${sortColumn === 'files' ? 'active' : ''}" onclick="setSort('files')" style="width: 60px; text-align: right;">
-                        Files<span class="sort-icon">${sortIcon('files')}</span>
-                    </div>
-                    <div class="sortable ${sortColumn === 'created' ? 'active' : ''}" onclick="setSort('created')" style="width: 100px; text-align: right;">
-                        Created<span class="sort-icon">${sortIcon('created')}</span>
-                    </div>
-                    <div class="col-actions" style="width: 140px;"></div>
-                </div>
-            `;
-
-            if (filteredKeys.length === 0 && searchQuery) {
-                keysList.innerHTML = header + '<div class="empty-state">No keys match your search.</div>';
-                return;
-            }
-
-            keysList.innerHTML = header + filteredKeys.map(k => {
+            keysGrid.innerHTML = keys.map(k => {
                 const usedPercent = k.quotaBytes > 0 ? (k.usedBytes / k.quotaBytes * 100) : 0;
                 const quotaClass = usedPercent >= 100 ? 'danger' : usedPercent > 90 ? 'warning' : '';
-                const isExpanded = expandedKeys.has(k.key);
 
                 return `
-                    <div class="key-card ${isExpanded ? 'expanded' : ''}" data-key="${k.key}">
-                        <div class="key-header" onclick="toggleKey('${k.key}')">
-                            <div class="key-toggle">&#9654;</div>
-                            <div class="key-info" style="flex: 1; min-width: 0;">
-                                <div class="key-label">
-                                    ${escapeHtml(k.label) || '(No label)'}
-                                    <span class="key-string" onclick="event.stopPropagation(); copyKey('${k.key}', this)" data-tooltip="Click to copy">${revealedKeys.has(k.key) ? k.key : '••••••••••••••••••••'}</span>
-                                    <button class="eye-btn-inline" onclick="event.stopPropagation(); toggleReveal('${k.key}')" title="${revealedKeys.has(k.key) ? 'Hide' : 'Show'} key">${revealedKeys.has(k.key) ? '👁' : '👁‍🗨'}</button>
-                                </div>
-                            </div>
-                            <div class="key-col" style="width: 100px; text-align: right;" onclick="event.stopPropagation()">
-                                ${editingQuotaKey === k.key ? `
-                                    <div class="quota-edit-form">
-                                        <input type="number" id="editQuotaValue-${k.key}" value="${getQuotaDisplay(k.quotaBytes).value}" min="1" step="1">
-                                        <select id="editQuotaUnit-${k.key}">
-                                            <option value="MiB" ${getQuotaDisplay(k.quotaBytes).unit === 'MiB' ? 'selected' : ''}>MiB</option>
-                                            <option value="GiB" ${getQuotaDisplay(k.quotaBytes).unit === 'GiB' ? 'selected' : ''}>GiB</option>
-                                            <option value="TiB" ${getQuotaDisplay(k.quotaBytes).unit === 'TiB' ? 'selected' : ''}>TiB</option>
-                                        </select>
-                                        <button class="quota-save-btn" onclick="saveQuota('${k.key}')">Save</button>
-                                        <button class="quota-cancel-btn" onclick="cancelEditQuota()">Cancel</button>
-                                    </div>
-                                ` : `
-                                    <div class="quota-text" style="font-size: 0.85em; color: #888;">${Math.round(usedPercent)}%</div>
-                                    <div class="quota-bar" style="width: 60px; margin-left: auto;">
-                                        <div class="quota-fill ${quotaClass}" style="width: ${Math.min(usedPercent, 100)}%"></div>
-                                    </div>
-                                `}
-                            </div>
-                            <div class="key-col" style="width: 60px; text-align: right; color: #888; font-size: 0.9em;">
-                                ${k.uploads.length}
-                            </div>
-                            <div class="key-col" style="width: 100px; text-align: right; color: #666; font-size: 0.85em;">
-                                ${formatDateShort(k.createdAt)}
-                            </div>
-                            <div class="key-actions" style="width: 140px;" onclick="event.stopPropagation()">
-                                <a class="upload-link-btn" href="/#${k.key}">Upload</a>
-                                <button class="delete-key-btn" onclick="deleteKey('${k.key}')">Delete</button>
-                            </div>
+                    <div class="key-item" data-key="${k.key}">
+                        <div class="key-item-info">
+                            <div class="key-item-label">${escapeHtml(k.label) || '(No label)'}</div>
+                            <div class="key-item-meta">${k.uploads.length} file${k.uploads.length !== 1 ? 's' : ''} · ${formatBytes(k.usedBytes)} / ${formatBytes(k.quotaBytes)}</div>
                         </div>
-                        <div class="key-uploads">
-                            ${k.uploads.length === 0 ? '<div class="no-uploads">No uploads yet</div>' : k.uploads.map(u => {
-                                const progress = u.totalChunks > 0 ? (u.chunksReceived / u.totalChunks * 100) : 0;
-                                const isComplete = u.totalChunks > 0 && u.chunksReceived === u.totalChunks;
-                                return `
-                                    <div class="upload-row">
-                                        <a class="upload-filename" href="/download/${u.id}" title="${escapeHtml(u.filename)}">${escapeHtml(u.filename)}</a>
-                                        <div class="upload-size">${formatBytes(u.size)}</div>
-                                        <div class="upload-progress">
-                                            <div class="progress-bar">
-                                                <div class="progress-fill ${isComplete ? 'complete' : ''}" style="width: ${progress}%"></div>
-                                            </div>
-                                            <div class="progress-text">${u.chunksReceived}/${u.totalChunks}</div>
-                                        </div>
-                                        <div class="upload-actions">
-                                            <button class="upload-copy" onclick="copyLink('${u.id}')">Copy Link</button>
-                                            <button class="upload-delete" onclick="deleteUpload('${u.id}', '${k.key}')">Delete</button>
-                                        </div>
-                                    </div>
-                                `;
-                            }).join('')}
+                        <div class="key-item-quota">
+                            <div class="quota-bar-small">
+                                <div class="quota-fill ${quotaClass}" style="width: ${Math.min(usedPercent, 100)}%"></div>
+                            </div>
+                            <span style="font-size: 0.75em; color: #666;">${Math.round(usedPercent)}%</span>
+                        </div>
+                        <div class="key-item-actions">
+                            <a href="/#${k.key}" title="Upload to this key">Upload</a>
+                            <button onclick="copyKeyToClipboard('${k.key}')" title="Copy key">Copy</button>
+                            <button onclick="deleteKey('${k.key}')" title="Delete key">Delete</button>
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
-        function toggleKey(key) {
-            // Don't toggle if we're editing this key's quota
-            if (editingQuotaKey === key) return;
+        function renderFilesTable() {
+            const files = getFilteredAndSortedFiles();
 
-            if (expandedKeys.has(key)) {
-                expandedKeys.delete(key);
-            } else {
-                expandedKeys.add(key);
-            }
-            renderKeys();
-        }
-
-        function toggleReveal(key) {
-            if (revealedKeys.has(key)) {
-                revealedKeys.delete(key);
-            } else {
-                revealedKeys.add(key);
-            }
-            renderKeys();
-        }
-
-        // Convert bytes to a nice value/unit pair for editing
-        function getQuotaDisplay(bytes) {
-            const TiB = 1024 * 1024 * 1024 * 1024;
-            const GiB = 1024 * 1024 * 1024;
-            const MiB = 1024 * 1024;
-
-            if (bytes >= TiB && bytes % TiB === 0) {
-                return { value: bytes / TiB, unit: 'TiB' };
-            } else if (bytes >= GiB && bytes % GiB === 0) {
-                return { value: bytes / GiB, unit: 'GiB' };
-            } else if (bytes >= GiB) {
-                return { value: Math.round(bytes / GiB * 100) / 100, unit: 'GiB' };
-            } else {
-                return { value: Math.round(bytes / MiB * 100) / 100, unit: 'MiB' };
-            }
-        }
-
-        function editQuota(key) {
-            stopAutoRefresh();  // Pause refresh while editing
-            editingQuotaKey = key;
-            renderKeys();
-        }
-
-        function cancelEditQuota() {
-            editingQuotaKey = null;
-            renderKeys();
-            startAutoRefresh();  // Resume refresh
-        }
-
-        async function saveQuota(key) {
-            const valueInput = document.getElementById(`editQuotaValue-${key}`);
-            const unitSelect = document.getElementById(`editQuotaUnit-${key}`);
-
-            const quotaValue = parseFloat(valueInput.value);
-            const quotaUnit = unitSelect.value;
-
-            if (!quotaValue || quotaValue <= 0) {
-                alert('Please enter a valid quota');
+            if (getAllFiles().length === 0) {
+                filesTableContainer.innerHTML = '';
+                filesEmpty.style.display = 'block';
                 return;
             }
+            filesEmpty.style.display = 'none';
 
-            try {
-                const res = await fetch(`/api/admin/keys/${key}`, {
-                    method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${sessionToken}`
-                    },
-                    body: JSON.stringify({ quotaValue, quotaUnit })
-                });
+            const sortIcon = (col) => sortColumn === col ? (sortDirection === 'asc' ? '▲' : '▼') : '';
 
-                if (res.ok) {
-                    editingQuotaKey = null;
-                    loadKeys();
-                    startAutoRefresh();  // Resume refresh
-                } else {
-                    const data = await res.json();
-                    alert(data.error || 'Failed to update quota');
-                }
-            } catch (err) {
-                alert('Failed to update quota: ' + err.message);
-            }
-        }
-
-        function renderOrphanedUploads() {
-            const section = document.getElementById('orphanedSection');
-            const list = document.getElementById('orphanedList');
-
-            if (orphanedUploads.length === 0) {
-                section.style.display = 'none';
-                return;
-            }
-
-            section.style.display = 'block';
-            list.innerHTML = `
-                <div class="key-card expanded">
-                    <div class="key-uploads" style="display: block; border-top: none;">
-                        ${orphanedUploads.map(u => {
-                            const progress = u.totalChunks > 0 ? (u.chunksReceived / u.totalChunks * 100) : 0;
-                            const isComplete = u.totalChunks > 0 && u.chunksReceived === u.totalChunks;
-                            return `
-                                <div class="upload-row">
-                                    <a class="upload-filename" href="/download/${u.id}" title="${escapeHtml(u.filename)}">${escapeHtml(u.filename)}</a>
-                                    <div class="upload-size">${formatBytes(u.size)}</div>
-                                    <div class="upload-progress">
-                                        <div class="progress-bar">
-                                            <div class="progress-fill ${isComplete ? 'complete' : ''}" style="width: ${progress}%"></div>
-                                        </div>
-                                        <div class="progress-text">${u.chunksReceived}/${u.totalChunks}</div>
-                                    </div>
-                                    <div class="upload-actions">
-                                        <button class="upload-copy" onclick="copyLink('${u.id}')">Copy Link</button>
-                                        <button class="upload-delete" onclick="deleteOrphanedUpload('${u.id}')">Delete</button>
-                                    </div>
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
-                </div>
+            let html = `
+                <table class="files-table">
+                    <thead>
+                        <tr>
+                            <th class="${sortColumn === 'key' ? 'active' : ''}" onclick="setSort('key')">
+                                Key<span class="sort-icon">${sortIcon('key')}</span>
+                            </th>
+                            <th class="${sortColumn === 'filename' ? 'active' : ''}" onclick="setSort('filename')">
+                                Filename<span class="sort-icon">${sortIcon('filename')}</span>
+                            </th>
+                            <th class="right ${sortColumn === 'size' ? 'active' : ''}" onclick="setSort('size')">
+                                Size<span class="sort-icon">${sortIcon('size')}</span>
+                            </th>
+                            <th class="${sortColumn === 'complete' ? 'active' : ''}" onclick="setSort('complete')">
+                                Complete<span class="sort-icon">${sortIcon('complete')}</span>
+                            </th>
+                            <th class="right ${sortColumn === 'created' ? 'active' : ''}" onclick="setSort('created')">
+                                Created<span class="sort-icon">${sortIcon('created')}</span>
+                            </th>
+                            <th class="right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
             `;
+
+            if (files.length === 0 && searchQuery) {
+                html += `<tr><td colspan="6" style="text-align: center; color: #555; padding: 20px;">No files match your search.</td></tr>`;
+            } else {
+                for (const f of files) {
+                    const isComplete = f.totalChunks > 0 && f.chunksReceived === f.totalChunks;
+
+                    html += `
+                        <tr>
+                            <td>
+                                <div class="file-key-cell">
+                                    <span class="file-key-label">${escapeHtml(f.keyLabel)}</span>
+                                    ${f.keyId ? `<a class="file-key-upload" href="/#${f.keyId}" title="Upload to this key">+</a>` : ''}
+                                </div>
+                            </td>
+                            <td class="file-name-cell">
+                                <a class="file-name-link" href="/download/${f.id}" title="${escapeHtml(f.filename)}">${escapeHtml(f.filename)}</a>
+                            </td>
+                            <td class="file-size-cell" style="text-align: right;">${formatBytes(f.size)}</td>
+                            <td style="color: ${isComplete ? '#888' : '#666'};">${isComplete ? 'Complete' : 'Incomplete'}</td>
+                            <td class="file-date-cell" style="text-align: right;">${formatDateShort(f.createdAt)}</td>
+                            <td class="file-actions-cell" style="text-align: right;">
+                                <button onclick="copyLink('${f.id}')">Copy</button>
+                                <button onclick="deleteUpload('${f.id}', '${f.keyId || ''}')">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                }
+            }
+
+            html += '</tbody></table>';
+            filesTableContainer.innerHTML = html;
         }
 
-        async function deleteOrphanedUpload(id) {
-            if (!confirm('Delete this file permanently?')) return;
-
-            try {
-                const res = await fetch('/api/admin/uploads/' + id, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${sessionToken}` }
-                });
-                if (res.ok) {
-                    loadKeys();
-                }
-            } catch (err) {
-                alert('Delete failed: ' + err.message);
-            }
+        function copyKeyToClipboard(key) {
+            navigator.clipboard.writeText(key).then(() => {
+                // Brief feedback could be added here
+            });
         }
 
         async function createKey() {
@@ -1022,7 +824,6 @@
                     headers: { 'Authorization': `Bearer ${sessionToken}` }
                 });
                 if (res.ok) {
-                    expandedKeys.delete(key);
                     loadKeys();
                 }
             } catch (err) {
@@ -1083,13 +884,7 @@
         function formatDateShort(timestamp) {
             if (!timestamp) return '--';
             const d = new Date(timestamp);
-            const now = new Date();
-            const diff = now - d;
-            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-            if (days === 0) return 'Today';
-            if (days === 1) return 'Yesterday';
-            if (days < 7) return days + 'd ago';
-            return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+            return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }
 
         function escapeHtml(str) {
