@@ -418,7 +418,7 @@
         </div>
     </div>
 
-    <div class="version">v3.12.0</div>
+    <div class="version">v3.12.1</div>
 
     <script>
         let keys = [];
@@ -755,7 +755,7 @@
                             <td style="text-align: right; color: #888;">${formatDateShort(k.createdAt)}</td>
                             <td class="key-actions-cell" style="text-align: right;">
                                 <a href="/#${k.key}">Upload</a>
-                                <button onclick="copyKeyToClipboard('${k.key}')">Copy</button>
+                                <button onclick="copyKeyToClipboard('${k.key}', this)">Copy Key</button>
                                 <button onclick="editKeyQuota('${k.key}')">Edit</button>
                                 <button onclick="deleteKey('${k.key}')">Delete</button>
                             </td>
@@ -913,9 +913,19 @@
             filesTableContainer.innerHTML = html;
         }
 
-        function copyKeyToClipboard(key) {
+        function copyKeyToClipboard(key, btn) {
             navigator.clipboard.writeText(key).then(() => {
-                // Brief feedback could be added here
+                const orig = btn.textContent;
+                btn.textContent = 'Copied!';
+                btn.style.background = '#900';
+                btn.style.color = '#fff';
+                btn.style.borderColor = '#900';
+                setTimeout(() => {
+                    btn.textContent = orig;
+                    btn.style.background = '';
+                    btn.style.color = '';
+                    btn.style.borderColor = '';
+                }, 1500);
             });
         }
 
