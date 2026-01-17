@@ -1,0 +1,16 @@
+services:
+  sendinator:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - sendinator-uploads:/var/lib/sendinator/uploads
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - UPLOAD_DIR=/var/lib/sendinator/uploads
+      - USE_NGINX_ACCEL=false
+
+volumes:
+  sendinator-uploads:
