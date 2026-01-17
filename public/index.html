@@ -131,9 +131,48 @@
             color: #333;
             font-size: 0.75em;
             text-decoration: none;
+            z-index: 100;
         }
         .admin-link:hover { color: #666; }
-        .version { position: fixed; bottom: 10px; right: 10px; color: #333; font-size: 0.75em; }
+        .version { position: fixed; bottom: 10px; right: 10px; color: #333; font-size: 0.75em; z-index: 100; }
+
+        /* Folder warning toast */
+        .folder-warning {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            border: 1px solid #555;
+            padding: 15px 25px;
+            z-index: 1000;
+            max-width: 400px;
+            text-align: center;
+            animation: slideDown 0.3s ease;
+        }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        .folder-warning-title {
+            font-weight: 600;
+            color: #ddd;
+            margin-bottom: 8px;
+        }
+        .folder-warning-text {
+            color: #999;
+            font-size: 0.9em;
+            margin-bottom: 12px;
+        }
+        .folder-warning-btn {
+            background: #555;
+            border: none;
+            color: #ddd;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        .folder-warning-btn:hover { background: #666; }
 
         /* Login container */
         .login-container {
@@ -266,8 +305,8 @@
 
     <div class="dropzone" id="dropzone" style="display: none;">
         <div class="dropzone-icon">📁</div>
-        <div class="dropzone-text">Drag & drop files or folders here</div>
-        <div class="dropzone-subtext">or click to select</div>
+        <div class="dropzone-text">Drag & drop files here</div>
+        <div class="dropzone-subtext">or use the buttons below</div>
         <input type="file" id="fileInput" multiple>
         <input type="file" id="folderInput" webkitdirectory style="display: none;">
         <div class="dropzone-buttons" style="margin-top: 15px; display: flex; gap: 10px;">
@@ -438,6 +477,24 @@
         function showLoginError(msg) {
             loginError.textContent = msg;
             loginError.style.display = 'block';
+        }
+
+        function showFolderWarning() {
+            // Remove existing warning if any
+            const existing = document.querySelector('.folder-warning');
+            if (existing) existing.remove();
+
+            const warning = document.createElement('div');
+            warning.className = 'folder-warning';
+            warning.innerHTML = `
+                <div class="folder-warning-title">Folders cannot be dragged</div>
+                <div class="folder-warning-text">To upload a folder, use the "Select Folder" button below.</div>
+                <button class="folder-warning-btn" onclick="this.parentElement.remove()">Got it</button>
+            `;
+            document.body.appendChild(warning);
+
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => warning.remove(), 5000);
         }
 
         // Auto-login from URL hash (e.g., /#abc123)
@@ -626,13 +683,25 @@
             e.preventDefault();
             dropzone.classList.remove('dragover');
             if (e.dataTransfer.items.length) {
-                // Must capture entries synchronously - dataTransfer is cleared after event handler returns
+                // Check if any dropped items are folders
                 const entries = [...e.dataTransfer.items]
                     .map(item => item.webkitGetAsEntry?.())
                     .filter(entry => entry);
+                const hasFolder = entries.some(entry => entry.isDirectory);
+
+                if (hasFolder) {
+                    // Show folder warning instead of processing
+                    showFolderWarning();
+                    return;
+                }
+
+                // Files only - process directly
                 const files = [...e.dataTransfer.files];
-                const items = scanDroppedEntries(entries, files);
-                await handleItems(items);
+                if (files.length === 1) {
+                    await handleItems(scanFileInput(files, false));
+                } else if (files.length > 1) {
+                    await handleItems(scanFileInput(files, false));
+                }
             }
         });
 

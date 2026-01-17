@@ -140,7 +140,17 @@
             text-decoration: none;
         }
         .home-link:hover { color: #aaa; text-decoration: underline; }
-        .version { position: fixed; bottom: 10px; right: 10px; color: #333; font-size: 0.75em; }
+        .admin-link {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            color: #333;
+            font-size: 0.75em;
+            text-decoration: none;
+            z-index: 100;
+        }
+        .admin-link:hover { color: #666; }
+        .version { position: fixed; bottom: 10px; right: 10px; color: #333; font-size: 0.75em; z-index: 100; }
         .archive-info { color: #888; font-size: 0.85em; margin-top: 4px; }
     </style>
 </head>
@@ -219,6 +229,7 @@
         <a href="/" class="home-link">Upload a new file</a>
     </div>
 
+    <a href="/admin" class="admin-link">Admin</a>
     <div class="version" id="version"></div>
 
     <script>
