@@ -90,14 +90,25 @@ Use [certbot](https://certbot.eff.org/) for free Let's Encrypt certificates.
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
+| `APP_NAME` | Sendinator | Application name in UI |
 | `PORT` | 3000 | Node.js server port |
 | `UPLOAD_DIR` | /var/lib/sendinator/uploads | Storage location |
 | `USE_NGINX_ACCEL` | true | Use nginx X-Accel-Redirect |
 
 To change settings:
 ```bash
-USE_NGINX_ACCEL=false pm2 restart sendinator
+APP_NAME="MyFileShare" USE_NGINX_ACCEL=false pm2 restart sendinator
 ```
+
+For Docker, edit `docker-compose.yaml` environment section:
+```yaml
+environment:
+  - APP_NAME=MyFileShare
+  - PORT=3000
+  # ...
+```
+
+Then rebuild: `docker compose up -d --build`
 
 ## Admin Panel
 

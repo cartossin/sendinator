@@ -7,6 +7,7 @@ services:
     volumes:
       - sendinator-uploads:/var/lib/sendinator/uploads
     environment:
+      - APP_NAME=Sendinator
       - NODE_ENV=production
       - PORT=3000
       - UPLOAD_DIR=/var/lib/sendinator/uploads

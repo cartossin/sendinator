@@ -243,7 +243,7 @@
     </style>
 </head>
 <body>
-    <h1>Sendinator</h1>
+    <h1 id="appName">Sendinator</h1>
     <p class="tagline">Drop a file. Share the link. Done.</p>
 
     <!-- Login container (shown when not authenticated) -->
@@ -688,7 +688,13 @@
         async function init() {
             await loadConfig();
             await checkSession();
-            // Load version
+            // Load app name and version
+            try {
+                const res = await fetch('/api/config/app');
+                const data = await res.json();
+                document.getElementById('appName').textContent = data.name;
+                document.title = data.name + ' - Drop a file to share';
+            } catch (e) {}
             try {
                 const res = await fetch('/api/version');
                 const data = await res.json();

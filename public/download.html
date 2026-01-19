@@ -145,7 +145,7 @@
     </style>
 </head>
 <body>
-    <h1>Sendinator</h1>
+    <h1 id="appName">Sendinator</h1>
     <p class="tagline" id="tagline">Your download is ready</p>
 
     <div class="download-card" id="downloadCard">
@@ -829,7 +829,11 @@
 
         loadFileInfo();
 
-        // Load version
+        // Load app name and version
+        fetch('/api/config/app').then(r => r.json()).then(d => {
+            document.getElementById('appName').textContent = d.name;
+            document.title = 'Download - ' + d.name;
+        }).catch(() => {});
         fetch('/api/version').then(r => r.json()).then(d => {
             document.getElementById('version').textContent = 'v' + d.version;
         }).catch(() => {});

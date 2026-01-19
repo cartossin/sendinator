@@ -11,6 +11,7 @@ COPY public ./public
 
 RUN mkdir -p /var/lib/sendinator/uploads
 
+ENV APP_NAME=Sendinator
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV UPLOAD_DIR=/var/lib/sendinator/uploads
