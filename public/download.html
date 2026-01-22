@@ -260,6 +260,7 @@
         const directLinkContainer = document.getElementById('directLinkContainer');
         const directLink = document.getElementById('directLink');
         let refreshInterval = null;
+        let isDownloading = false;  // Track if download is in progress
 
         async function loadFileInfo() {
             try {
@@ -313,6 +314,9 @@
                     status.textContent = fileInfo.downloadError || 'This file is not available for download';
                     return;
                 }
+
+                // Skip button/status updates if download is in progress
+                if (isDownloading) return;
 
                 // Handle based on browser support and file type
                 if (supportsProgressiveDownload) {
@@ -409,6 +413,7 @@
                 return;
             }
 
+            isDownloading = true;
             downloadBtn.disabled = true;
             downloadBtn.textContent = 'Downloading...';
             progressContainer.classList.add('active');
@@ -746,6 +751,7 @@
 
                 await writable.close();
 
+                isDownloading = false;
                 status.className = 'status complete';
                 status.textContent = 'Download complete!';
                 progressFill.style.width = '100%';
@@ -759,6 +765,7 @@
                 if (writable) {
                     try { await writable.abort(); } catch(e) {}
                 }
+                isDownloading = false;
                 status.className = 'status error';
                 status.textContent = 'Error: ' + err.message;
                 downloadBtn.disabled = false;
