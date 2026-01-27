@@ -34,6 +34,16 @@ pm2 startup
 
 Done. nginx listens on port 80.
 
+### Docker Alternative
+
+```bash
+git clone https://github.com/cartossin/sendinator.git
+cd sendinator
+docker compose up -d
+```
+
+Access at `http://localhost:3000`.
+
 ## Update
 
 ```bash
@@ -42,6 +52,8 @@ git pull
 npm install
 pm2 restart sendinator
 ```
+
+For Docker: `git pull && docker compose up -d --build`
 
 ## HTTPS Setup (required)
 
@@ -53,7 +65,7 @@ Sendinator requires HTTPS for the File System Access API used by managed downloa
 
 If you run [Nginx Proxy Manager](https://nginxproxymanager.com/) on your network:
 
-1. Add a new proxy host pointing to this server's port 80
+1. Add a new proxy host pointing to this server's port 80 (or port 3000 for Docker)
 2. Enable SSL with Let's Encrypt
 
 ### Option 2: Direct SSL on nginx
@@ -78,14 +90,25 @@ Use [certbot](https://certbot.eff.org/) for free Let's Encrypt certificates.
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
+| `APP_NAME` | Sendinator | Application name in UI |
 | `PORT` | 3000 | Node.js server port |
 | `UPLOAD_DIR` | /var/lib/sendinator/uploads | Storage location |
 | `USE_NGINX_ACCEL` | true | Use nginx X-Accel-Redirect |
 
 To change settings:
 ```bash
-USE_NGINX_ACCEL=false pm2 restart sendinator
+APP_NAME="MyFileShare" USE_NGINX_ACCEL=false pm2 restart sendinator
 ```
+
+For Docker, edit `docker-compose.yaml` environment section:
+```yaml
+environment:
+  - APP_NAME=MyFileShare
+  - PORT=3000
+  # ...
+```
+
+Then rebuild: `docker compose up -d --build`
 
 ## Admin Panel
 

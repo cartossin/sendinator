@@ -95,6 +95,7 @@ function verifyKeySession(req) {
 }
 
 // === CONFIGURATION ===
+const APP_NAME = process.env.APP_NAME || 'Sendinator';
 const PORT = process.env.PORT || 3000;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/var/lib/sendinator/uploads';
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -727,6 +728,11 @@ const server = http.createServer(async (req, res) => {
             return sendJson(res, 200, { version: pkg.version });
         }
 
+        // GET /api/config/app
+        if (method === 'GET' && pathname === '/api/config/app') {
+            return sendJson(res, 200, { name: APP_NAME });
+        }
+
         // GET /api/info/:id
         const infoMatch = pathname.match(/^\/api\/info\/([a-f0-9]+)$/);
         if (method === 'GET' && infoMatch) {
@@ -1036,11 +1042,11 @@ const server = http.createServer(async (req, res) => {
 
             return sendJson(res, 200, {
                 challenge,
-                rp: { name: 'Sendinator', id: new URL(`http://${req.headers.host}`).hostname },
+                rp: { name: APP_NAME, id: new URL(`http://${req.headers.host}`).hostname },
                 user: {
                     id: bufferToBase64url(crypto.randomBytes(16)),
                     name: 'admin',
-                    displayName: 'Sendinator Admin'
+                    displayName: `${APP_NAME} Admin`
                 },
                 pubKeyCredParams: [{ alg: -7, type: 'public-key' }], // ES256
                 timeout: 300000,
@@ -1629,7 +1635,7 @@ loadFilesFromDisk();
 loadUploadKeys();
 
 server.listen(PORT, () => {
-    console.log(`Sendinator running on http://localhost:${PORT}`);
+    console.log(`${APP_NAME} running on http://localhost:${PORT}`);
     console.log(`Chunk size: ${formatBytes(CHUNK_SIZE)}`);
     if (USE_NGINX_ACCEL) {
         console.log(`nginx X-Accel-Redirect: ENABLED (low CPU mode)`);

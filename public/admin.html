@@ -350,7 +350,7 @@
     <!-- Admin Panel -->
     <div class="admin-panel" id="adminPanel">
         <div class="header">
-            <h1>Sendinator Admin</h1>
+            <h1><span id="appName">Sendinator</span> Admin</h1>
             <div class="header-right">
                 <a href="/" class="home-link">Back to Upload</a>
                 <a href="#" class="home-link" onclick="logout(); return false;">Logout</a>
@@ -1176,7 +1176,11 @@
         // Init
         checkAuth();
 
-        // Load version
+        // Load app name and version
+        fetch('/api/config/app').then(r => r.json()).then(d => {
+            document.getElementById('appName').textContent = d.name;
+            document.title = 'Admin - ' + d.name;
+        }).catch(() => {});
         fetch('/api/version').then(r => r.json()).then(d => {
             document.getElementById('version').textContent = 'v' + d.version;
         }).catch(() => {});
