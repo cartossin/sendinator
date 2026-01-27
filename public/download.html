@@ -233,10 +233,6 @@
     <div class="version" id="version"></div>
 
     <script>
-        // Pipeline configuration
-        const PARALLEL_DOWNLOADS = 6;
-        const PARALLEL_HASHES = 3;
-
         const fileId = window.location.pathname.split('/').pop();
         let fileInfo = null;
         const supportsProgressiveDownload = !!window.showSaveFilePicker;
@@ -436,315 +432,89 @@
                 if (res.ok) fileInfo = await res.json();
             } catch (e) { /* use cached */ }
 
-            // Calculate buffer sizes from server config
-            const targetMemory = fileInfo.targetBufferMemory || (100 * 1024 * 1024);
-            const chunkSize = fileInfo.chunkSize;
-            const halfMemory = Math.floor(targetMemory / 2);
-            const MAX_DOWNLOAD_BUFFER = Math.max(2, Math.floor(halfMemory / chunkSize));
-            const MAX_VERIFIED_BUFFER = Math.max(2, Math.floor(halfMemory / chunkSize));
-            console.log(`Buffer config: ${formatBytes(chunkSize)} chunks, ${MAX_DOWNLOAD_BUFFER} download + ${MAX_VERIFIED_BUFFER} verified = ~${formatBytes(targetMemory)} target`);
-
-            // Pipeline state
-            const downloadBuffer = new Map();
-            const verifiedBuffer = new Map();
-            const chunkState = new Array(fileInfo.totalChunks).fill('pending');
-            let nextChunkToWrite = 0;
             let writtenBytes = 0;
-            let pipelineError = null;
-            let lastProgressTime = Date.now();
-            let quotaExhausted = false;
+            const startTime = Date.now();
+            const chunkTimings = [];
 
-            // Speed tracking
-            const chunkCompletions = [];
-            const speedInterval = setInterval(() => {
-                const now = Date.now();
-                const recent = chunkCompletions.filter(t => t > now - 30000);
-                if (recent.length > 0) {
-                    const windowSeconds = Math.min(30, (now - chunkCompletions[0]) / 1000);
-                    const speed = recent.length * fileInfo.chunkSize / windowSeconds;
-                    progressSpeed.textContent = formatBytes(speed) + '/s';
-                    const remainingBytes = fileInfo.size - writtenBytes;
-                    const etaSeconds = remainingBytes / speed;
-                    progressEta.textContent = formatTime(etaSeconds);
-                }
-            }, 1000);
-
-            function updateProgress() {
-                const doneCount = chunkState.filter(s => s === 'done').length;
-                const progress = (doneCount / fileInfo.totalChunks * 100);
-                progressFill.style.width = progress.toFixed(1) + '%';
-                progressPercent.textContent = `${doneCount}/${fileInfo.totalChunks}`;
-                chunkInfo.textContent = `${formatBytes(writtenBytes)} / ${formatBytes(fileInfo.size)} | Buffered: ${downloadBuffer.size + verifiedBuffer.size} chunks`;
-            }
-
-            // File info refresher for progressive downloads
-            async function fileInfoRefresher() {
-                while (!pipelineError && !fileInfo.complete) {
-                    await new Promise(r => setTimeout(r, 2000));
-                    if (pipelineError || chunkState.every(s => s === 'done')) break;
-                    try {
-                        const res = await fetch(`/api/info/${fileId}`);
-                        if (res.ok) fileInfo = await res.json();
-                    } catch (e) { /* ignore */ }
-                }
-            }
-
-            // Download worker
-            async function downloadWorker(workerId) {
-                while (!pipelineError) {
-                    if (chunkState.every(s => s === 'done')) break;
-
-                    let chunkIndex = -1;
-
-                    for (let i = nextChunkToWrite; i < fileInfo.totalChunks; i++) {
-                        if (chunkState[i] === 'pending' && fileInfo.chunkHashes[i]) {
-                            chunkIndex = i;
-                            chunkState[i] = 'downloading';
-                            break;
-                        }
-                    }
-
-                    if (chunkIndex === -1) {
-                        for (let i = 0; i < nextChunkToWrite; i++) {
-                            if (chunkState[i] === 'pending' && fileInfo.chunkHashes[i]) {
-                                chunkIndex = i;
-                                chunkState[i] = 'downloading';
-                                break;
-                            }
-                        }
-                    }
-
-                    if (chunkIndex === -1) {
-                        const remaining = fileInfo.totalChunks - nextChunkToWrite;
-                        await new Promise(r => setTimeout(r, remaining < 20 ? 10 : 100));
-                        continue;
-                    }
-
-                    try {
-                        const data = await downloadChunk(chunkIndex);
-
-                        quotaExhausted = false;
-                        if (status.className.includes('error')) {
-                            status.className = 'status downloading';
-                        }
-
-                        while (downloadBuffer.size >= MAX_DOWNLOAD_BUFFER && !pipelineError) {
-                            if (chunkState[chunkIndex] === 'pending') {
-                                console.log(`[WORKER] Discarding chunk ${chunkIndex} - watchdog reset it`);
-                                break;
-                            }
-                            if (chunkIndex === nextChunkToWrite) {
-                                let maxIdx = -1;
-                                for (const idx of downloadBuffer.keys()) {
-                                    if (idx > maxIdx) maxIdx = idx;
-                                }
-                                if (maxIdx > chunkIndex) {
-                                    console.log(`[WORKER] Evicting chunk ${maxIdx} to make room for critical chunk ${chunkIndex}`);
-                                    downloadBuffer.delete(maxIdx);
-                                    chunkState[maxIdx] = 'pending';
-                                    break;
-                                }
-                            }
-                            const remaining = fileInfo.totalChunks - nextChunkToWrite;
-                            await new Promise(r => setTimeout(r, remaining < 20 ? 10 : 50));
-                        }
-                        if (pipelineError) break;
-
-                        if (chunkState[chunkIndex] === 'downloading') {
-                            downloadBuffer.set(chunkIndex, data);
-                            chunkState[chunkIndex] = 'downloaded';
-                        }
-                    } catch (err) {
-                        chunkState[chunkIndex] = 'pending';
-                        if (err.is404) {
-                            await new Promise(r => setTimeout(r, 500));
-                        } else if (err.isQuotaError) {
-                            quotaExhausted = true;
-                            status.className = 'status error';
-                            status.textContent = 'Quota exhausted - waiting for more quota...';
-                            await new Promise(r => setTimeout(r, 5000));
-                        } else if (err.isRetryable || err.message?.includes('fetch')) {
-                            status.className = 'status error';
-                            status.textContent = `Connection lost - retrying...`;
-                            await new Promise(r => setTimeout(r, 1000));
-                        } else {
-                            await new Promise(r => setTimeout(r, 500));
-                        }
-                    }
-                }
-            }
-
-            // Hash worker
-            async function hashWorker(workerId) {
-                while (!pipelineError) {
-                    if (chunkState.every(s => s === 'done')) break;
-
-                    let chunkIndex = -1;
-
-                    if (chunkState[nextChunkToWrite] === 'downloaded') {
-                        chunkIndex = nextChunkToWrite;
-                        chunkState[chunkIndex] = 'hashing';
-                        if (verifiedBuffer.size >= MAX_VERIFIED_BUFFER) {
-                            let maxIdx = -1;
-                            for (const idx of verifiedBuffer.keys()) {
-                                if (idx > maxIdx) maxIdx = idx;
-                            }
-                            if (maxIdx > nextChunkToWrite) {
-                                verifiedBuffer.delete(maxIdx);
-                                chunkState[maxIdx] = 'pending';
-                            }
-                        }
-                    } else {
-                        if (verifiedBuffer.size >= MAX_VERIFIED_BUFFER) {
-                            const remaining = fileInfo.totalChunks - nextChunkToWrite;
-                            await new Promise(r => setTimeout(r, remaining < 20 ? 5 : 50));
-                            continue;
-                        }
-
-                        for (let i = nextChunkToWrite; i < fileInfo.totalChunks; i++) {
-                            if (chunkState[i] === 'downloaded') {
-                                chunkIndex = i;
-                                chunkState[i] = 'hashing';
-                                break;
-                            }
-                        }
-                    }
-
-                    if (chunkIndex === -1) {
-                        const remaining = fileInfo.totalChunks - nextChunkToWrite;
-                        await new Promise(r => setTimeout(r, remaining < 20 ? 5 : 50));
-                        continue;
-                    }
-
-                    try {
-                        const data = downloadBuffer.get(chunkIndex);
-                        downloadBuffer.delete(chunkIndex);
-
-                        const hash = await hashData(data);
-
-                        if (hash !== fileInfo.chunkHashes[chunkIndex]) {
-                            chunkState[chunkIndex] = 'pending';
-                            continue;
-                        }
-
-                        const chunk = new Uint8Array(data.byteLength);
-                        chunk.set(new Uint8Array(data));
-
-                        verifiedBuffer.set(chunkIndex, chunk);
-                        chunkState[chunkIndex] = 'verified';
-                    } catch (err) {
-                        chunkState[chunkIndex] = 'pending';
-                    }
-                }
-            }
-
-            // Disk writer
-            async function diskWriter() {
-                while (!pipelineError && nextChunkToWrite < fileInfo.totalChunks) {
-                    if (verifiedBuffer.has(nextChunkToWrite)) {
-                        const data = verifiedBuffer.get(nextChunkToWrite);
-                        try {
-                            await writable.write(data);
-                            verifiedBuffer.delete(nextChunkToWrite);
-                            writtenBytes += data.byteLength;
-                            chunkState[nextChunkToWrite] = 'done';
-                            chunkCompletions.push(Date.now());
-                            lastProgressTime = Date.now();
-                            nextChunkToWrite++;
-                            updateProgress();
-                        } catch (err) {
-                            pipelineError = err;
-                            throw err;
-                        }
-                    } else {
-                        const remaining = fileInfo.totalChunks - nextChunkToWrite;
-                        await new Promise(r => setTimeout(r, remaining < 20 ? 5 : 20));
-                    }
-                }
-            }
-
-            // Watchdog
-            async function watchdog() {
-                const STALL_TIMEOUT = 15000;
-
-                while (!pipelineError && nextChunkToWrite < fileInfo.totalChunks) {
-                    await new Promise(r => setTimeout(r, 5000));
-
-                    if (pipelineError || chunkState.every(s => s === 'done')) break;
-
-                    const timeSinceProgress = Date.now() - lastProgressTime;
-
-                    if (timeSinceProgress > STALL_TIMEOUT) {
-                        console.warn(`[WATCHDOG] Stall detected! No progress for ${Math.round(timeSinceProgress/1000)}s. Forcing recovery...`);
-                        status.className = 'status error';
-                        status.textContent = 'Stall detected - recovering...';
-
-                        for (const idx of downloadBuffer.keys()) {
-                            if (idx !== nextChunkToWrite) {
-                                downloadBuffer.delete(idx);
-                                chunkState[idx] = 'pending';
-                            }
-                        }
-                        for (const idx of verifiedBuffer.keys()) {
-                            if (idx !== nextChunkToWrite) {
-                                verifiedBuffer.delete(idx);
-                                chunkState[idx] = 'pending';
-                            }
-                        }
-
-                        for (let i = 0; i < fileInfo.totalChunks; i++) {
-                            if (chunkState[i] === 'downloading' || chunkState[i] === 'hashing') {
-                                chunkState[i] = 'pending';
-                            }
-                        }
-
-                        if (chunkState[nextChunkToWrite] !== 'done' && chunkState[nextChunkToWrite] !== 'verified') {
-                            downloadBuffer.delete(nextChunkToWrite);
-                            verifiedBuffer.delete(nextChunkToWrite);
-                            chunkState[nextChunkToWrite] = 'pending';
-                        }
-
-                        lastProgressTime = Date.now();
-                    }
-                }
-            }
-
-            // Status updater
-            async function statusUpdater() {
-                while (!pipelineError && nextChunkToWrite < fileInfo.totalChunks) {
-                    const downloading = chunkState.filter(s => s === 'downloading').length;
-                    const pending = chunkState.filter(s => s === 'pending').length;
-
-                    if (quotaExhausted) {
-                        await new Promise(r => setTimeout(r, 500));
-                        continue;
-                    }
-
-                    const remaining = fileInfo.totalChunks - nextChunkToWrite;
-                    if (remaining <= 10 && remaining > 0) {
-                        status.textContent = `Finalizing... ${remaining} chunks remaining`;
-                        status.className = 'status verifying';
-                    } else if (pending > 0 && !fileInfo.complete) {
-                        status.textContent = `${downloading} downloading | ${nextChunkToWrite}/${fileInfo.totalChunks} written (waiting for upload)`;
-                    } else {
-                        status.textContent = `${downloading} downloading | ${nextChunkToWrite}/${fileInfo.totalChunks} written`;
-                    }
-
-                    await new Promise(r => setTimeout(r, 500));
-                }
-            }
-
+            // Sequential download loop
             try {
-                await Promise.all([
-                    fileInfoRefresher(),
-                    ...Array(PARALLEL_DOWNLOADS).fill().map((_, i) => downloadWorker(i)),
-                    ...Array(PARALLEL_HASHES).fill().map((_, i) => hashWorker(i)),
-                    diskWriter(),
-                    statusUpdater(),
-                    watchdog()
-                ]);
+                for (let i = 0; i < fileInfo.totalChunks; i++) {
+                    let success = false;
 
-                clearInterval(speedInterval);
+                    while (!success) {
+                        // Wait if chunk not uploaded yet
+                        while (!fileInfo.chunkHashes[i]) {
+                            status.className = 'status waiting';
+                            status.textContent = `Waiting for chunk ${i+1}/${fileInfo.totalChunks} to upload...`;
+                            await new Promise(r => setTimeout(r, 2000));
+                            try {
+                                const res = await fetch(`/api/info/${fileId}`);
+                                if (res.ok) fileInfo = await res.json();
+                            } catch (e) { /* retry */ }
+                        }
+
+                        try {
+                            status.className = 'status downloading';
+                            status.textContent = `Downloading chunk ${i+1}/${fileInfo.totalChunks}...`;
+
+                            // Download chunk
+                            const chunkStart = Date.now();
+                            const data = await downloadChunk(i);
+
+                            // Hash verification
+                            const hash = await hashData(data);
+                            if (hash !== fileInfo.chunkHashes[i]) {
+                                console.warn(`Chunk ${i} hash mismatch, retrying...`);
+                                await new Promise(r => setTimeout(r, 500));
+                                continue;
+                            }
+
+                            // Write to disk
+                            await writable.write(new Uint8Array(data));
+                            writtenBytes += data.byteLength;
+
+                            // Track speed
+                            chunkTimings.push(Date.now());
+                            if (chunkTimings.length > 30) chunkTimings.shift();
+                            if (chunkTimings.length > 1) {
+                                const elapsed = (chunkTimings[chunkTimings.length - 1] - chunkTimings[0]) / 1000;
+                                const speed = (chunkTimings.length * fileInfo.chunkSize) / elapsed;
+                                progressSpeed.textContent = formatBytes(speed) + '/s';
+                                const remainingBytes = fileInfo.size - writtenBytes;
+                                const eta = remainingBytes / speed;
+                                progressEta.textContent = formatTime(eta);
+                            }
+
+                            // Update progress
+                            const progress = ((i + 1) / fileInfo.totalChunks * 100);
+                            progressFill.style.width = progress.toFixed(1) + '%';
+                            progressPercent.textContent = `${i+1}/${fileInfo.totalChunks}`;
+                            chunkInfo.textContent = `${formatBytes(writtenBytes)} / ${formatBytes(fileInfo.size)}`;
+
+                            success = true;
+
+                        } catch (err) {
+                            if (err.is404) {
+                                // Chunk not uploaded yet, wait and refresh file info
+                                await new Promise(r => setTimeout(r, 500));
+                                try {
+                                    const res = await fetch(`/api/info/${fileId}`);
+                                    if (res.ok) fileInfo = await res.json();
+                                } catch (e) { /* retry */ }
+                            } else if (err.isQuotaError) {
+                                status.className = 'status error';
+                                status.textContent = 'Bandwidth quota exhausted - waiting...';
+                                await new Promise(r => setTimeout(r, 5000));
+                            } else if (err.isRetryable || err.message?.includes('fetch')) {
+                                status.className = 'status error';
+                                status.textContent = `Connection error - retrying...`;
+                                await new Promise(r => setTimeout(r, 1000));
+                            } else {
+                                throw err;
+                            }
+                        }
+                    }
+                }
 
                 status.className = 'status verifying';
                 status.textContent = 'Finalizing file... (browser security scan - may take a few minutes for large files)';
@@ -760,8 +530,6 @@
                 downloadBtn.textContent = 'Completed';
 
             } catch (err) {
-                clearInterval(speedInterval);
-                pipelineError = err;
                 if (writable) {
                     try { await writable.abort(); } catch(e) {}
                 }

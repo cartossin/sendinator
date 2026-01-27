@@ -429,9 +429,9 @@
             sessionLabel.textContent = currentSession.label || 'Upload Key';
             const remaining = currentSession.quotaBytes - currentSession.usedBytes;
             if (remaining > 0) {
-                sessionQuota.innerHTML = `<span class="remaining">${formatBytes(remaining)}</span> remaining of ${formatBytes(currentSession.quotaBytes)}`;
+                sessionQuota.innerHTML = `<span class="remaining">${formatBytes(remaining)}</span> bandwidth remaining of ${formatBytes(currentSession.quotaBytes)}`;
             } else {
-                sessionQuota.innerHTML = `<span class="exceeded">Quota exceeded</span> (${formatBytes(currentSession.usedBytes)} / ${formatBytes(currentSession.quotaBytes)})`;
+                sessionQuota.innerHTML = `<span class="exceeded">Bandwidth quota exceeded</span> (${formatBytes(currentSession.usedBytes)} / ${formatBytes(currentSession.quotaBytes)})`;
             }
         }
 
@@ -815,7 +815,7 @@
             const remaining = currentSession.quotaBytes - currentSession.usedBytes;
             if (totalSize > remaining) {
                 status.className = 'status error';
-                status.textContent = `Not enough quota. Need ${formatBytes(totalSize)}, have ${formatBytes(remaining)}.`;
+                status.textContent = `Not enough bandwidth quota. Need ${formatBytes(totalSize)}, have ${formatBytes(remaining)}.`;
                 dropzone.style.display = 'flex';
                 uploadContainer.classList.remove('active');
                 return;

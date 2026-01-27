@@ -380,7 +380,7 @@
                     <input type="text" id="keyLabel" placeholder="e.g., John's key">
                 </div>
                 <div class="form-group">
-                    <label>Quota</label>
+                    <label>Bandwidth Quota</label>
                     <div style="display: flex; gap: 6px;">
                         <input type="number" id="keyQuota" value="10" min="1" step="1" style="width: 80px;">
                         <select id="keyQuotaUnit" style="padding: 10px; background: #1a1a1a; border: 1px solid #333; color: #ccc;">
@@ -726,10 +726,10 @@
                                 Files<span class="sort-icon">${sortIcon('files')}</span>
                             </th>
                             <th class="right ${keysSortColumn === 'used' ? 'active' : ''}" onclick="setKeysSort('used')">
-                                Used<span class="sort-icon">${sortIcon('used')}</span>
+                                Bandwidth Usage<span class="sort-icon">${sortIcon('used')}</span>
                             </th>
                             <th class="right ${keysSortColumn === 'quota' ? 'active' : ''}" onclick="setKeysSort('quota')">
-                                Quota<span class="sort-icon">${sortIcon('quota')}</span>
+                                Bandwidth Quota<span class="sort-icon">${sortIcon('quota')}</span>
                             </th>
                             <th class="${keysSortColumn === 'usage' ? 'active' : ''}" onclick="setKeysSort('usage')">
                                 Usage<span class="sort-icon">${sortIcon('usage')}</span>
@@ -1185,10 +1185,10 @@
     <!-- Edit Quota Modal -->
     <div class="modal-overlay" id="editQuotaModal" onclick="closeEditModal()">
         <div class="modal" onclick="event.stopPropagation()">
-            <h3>Edit Quota</h3>
+            <h3>Edit Bandwidth Quota</h3>
             <div class="modal-subtitle" id="editQuotaLabel"></div>
             <div class="modal-field">
-                <label>New Quota</label>
+                <label>New Bandwidth Quota</label>
                 <div class="modal-field-row">
                     <input type="number" id="editQuotaValue" min="1" step="1" placeholder="10">
                     <select id="editQuotaUnit">
